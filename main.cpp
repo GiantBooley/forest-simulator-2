@@ -125,7 +125,7 @@ class SoundDoer {
 	#define SOUND_ROBOT 11
 	#define SOUND_MUSIC_HUMAN_PASSAGES 12
 	vector<SoundDoerSound> sounds = {
-		{false, 1.f, "resources/audio/brain.wav"},
+		//{false, 1.f, "resources/audio/brain.wav"},
 	};
 	vector<SoundDoerBuffer> buffers = {};
 	SoundDoer() {
@@ -416,9 +416,14 @@ class Material {
 			vtexcoord_location = glGetAttribLocation(program, "vTexCoord");
 		}
 };
+class Entity {
+public:
+	Vec2 pos = {0.f, 0.f};
+	Vec2 vel = {0.f, 0.f};
+};
 class World {
 	public:
-	//vector<Entity> entities = {};
+	vector<Entity> entities = {{}};
 	Camera camera;
 	int worldWidth = 100;
 	int worldHeight = 100;
@@ -431,11 +436,36 @@ class World {
 		}
 	}
 };
+float lerpd(float a, float b, float t, float d) {
+	b += d * 0.f;
+	return (b - a) * t + a;
+}
 class GameState {
 	public:
 	World world;
 	float dt = 1.f;
-	void tick(int width, int height) {}
+	float x = 0.f;
+	void tick(int width, int height) {
+		float gravity = -9.81f;
+		for (int i = 0; i < (int)world.entities.size(); i++) {
+			world.entities[i].vel.x *= 0.8f * dt;
+			world.entities[i].vel.y += gravity * dt;
+			if (controls.d) world.entities[i].vel.x += 1.42f * dt;
+			if (controls.a) world.entities[i].vel.x -= 1.42f * dt;
+			if (world.entities[i].pos.y < 0.f) {
+				world.entities[i].pos.y = 0.f;
+				if (controls.w) {
+					world.entities[i].vel.y = 2.f;
+				} else {
+					world.entities[i].vel.y = 0.f;
+				};
+			}
+			world.entities[i].pos.x += world.entities[i].vel.x;
+			world.entities[i].pos.y += world.entities[i].vel.y;
+		}
+		world.camera.pos.x = lerpd(world.camera.pos.x, world.entities[0].pos.x, 0.1f, 1.f);
+		world.camera.pos.y = lerpd(world.camera.pos.y, world.entities[0].pos.y, 0.1f, 1.f);
+	}
 };
 class GameStateRenderer {
 public:
@@ -452,8 +482,9 @@ public:
 	Shader guiF{"resources/shader/gui.fsh", GL_FRAGMENT_SHADER};
 
 	vector<Material> materials = {
-		{"solid"					  , solidV.shader, solidF.shader		  , "resources/texture/brain.png"},
-		{"dirt"					  , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
+		{"solid"					  , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
+		{"dirt"					   , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
+		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"gui_font"				   , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
 
@@ -492,6 +523,9 @@ public:
 				if (game->world.tiles[x][y] == 1) addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), {0.f, 0.f});
 			}
 		}
+		for (int i = 0; i < (int)game->world.entities.size(); i++) {
+			addRect(game->world.entities[i].pos.x, game->world.entities[i].pos.y, 0.f, 1.f, 1.5f, getMatID("player"), {0.f, 0.f});
+		}
 	}
 	void renderMaterials(int width, int height) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -500,8 +534,9 @@ public:
 		buildThem(width, height);
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertices[0]), &vertices[0], GL_STATIC_DRAW);
 		for (int i = 0; i < (int)materials.size(); i++) {
-			renderMaterial(i, width, height);
+			if ((int)indiceses[i].size() > 0) renderMaterial(i, width, height);
 		}
+
 	}
 	void renderMaterial(int id, int width, int height) {
 
@@ -704,8 +739,8 @@ int main(void) {
 		
 		glfwGetFramebufferSize(window, &width, &height);
 
-		game.dt = 0.2f;;
-		for (int i = 0; i < 5; i++) {
+		game.dt = 0.5f * (1.f / 60.f);
+		for (int i = 0; i < 2; i++) {
 			game.tick(width, height);
 		}
 
