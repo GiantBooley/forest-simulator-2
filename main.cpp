@@ -46,6 +46,9 @@ public:
 		y = asdy;
 	}
 };
+bool pointIsInRectangleRange(Vec2 point, Vec2 radius) {
+	return point.x < radius.x && point.x > -radius.x && point.y < radius.y && point.y > -radius.y;
+}
 bool lineCircleIntersects(float ax, float ay, float bx, float by, float cx, float cy, float r) {
 	ax -= cx;
 	ay -= cy;
@@ -180,6 +183,7 @@ class Controls {
 	   bool a = false;
 	   bool s = false;
 	   bool d = false;
+	   bool shift = false;
 	   Vec2 mouse{0.f, 0.f};
 	   Vec2 worldMouse{0.f, 0.f};
 	   Vec2 clipMouse{0.f, 0.f};
@@ -211,6 +215,9 @@ float roundToPlace(float x, float place) {
 	return round(x / place) * place;
 }
 float frameTime = 0.0f;
+unsigned int fps = 0U;
+unsigned int fpsCounter = fps;
+double lastFpsTime = 0U;
 long long lastFrameTime = 0LL;
 string getFileNameFromPath(string path) {
 	for (int i = (int)path.size() - 1; i >= 0; i--) {
@@ -418,27 +425,30 @@ class Material {
 };
 class Entity {
 public:
-	Vec2 pos = {0.f, 0.f};
+	Vec2 pos = {20.f, 5.f};
 	Vec2 vel = {0.f, 0.f};
 };
 class World {
 	public:
 	vector<Entity> entities = {{}};
 	Camera camera;
-	int worldWidth = 100;
-	int worldHeight = 100;
-	int tiles[100][100];
+	const static int worldWidth = 100;
+	const static int worldHeight = 1000;
+	int tiles[worldWidth][worldHeight];
 	World() {
 		for (int x = 0; x < worldWidth; x++) {
 			for (int y = 0; y < worldHeight; y++) {
-				tiles[x][y] = (int)round(randFloat());
+				tiles[x][y] = (int)(randFloat() < 0.1f);
 			}
 		}
 	}
+	int getTile(Vec2 pos) {
+		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return 0;
+		return tiles[(int)pos.x][(int)pos.y];
+	}
 };
 float lerpd(float a, float b, float t, float d) {
-	b += d * 0.f;
-	return (b - a) * t + a;
+	return (b - a) * (t + d * 0.f) + a;
 }
 class GameState {
 	public:
@@ -446,27 +456,39 @@ class GameState {
 	float dt = 1.f;
 	float x = 0.f;
 	void tick(int width, int height) {
-		float gravity = -9.81f;
+
+		// Physics Tracing Extreme
+		float gravity = -9.807f;
+		float friction = 0.9f;
+		
 		for (int i = 0; i < (int)world.entities.size(); i++) {
-			world.entities[i].vel.x *= 0.8f * dt;
-			world.entities[i].vel.y += gravity * dt;
-			if (controls.d) world.entities[i].vel.x += 1.42f * dt;
-			if (controls.a) world.entities[i].vel.x -= 1.42f * dt;
-			if (world.entities[i].pos.y < 0.f) {
-				world.entities[i].pos.y = 0.f;
-				if (controls.w) {
-					world.entities[i].vel.y = 2.f;
-				} else {
-					world.entities[i].vel.y = 0.f;
-				};
+			Entity& e = world.entities[i];
+			e.vel.y += gravity * dt;
+			float netMovement = controls.d - controls.a;
+			e.vel.x = netMovement * lerpd(e.vel.x, controls.shift ? 6.f : 1.6f, friction, dt);
+			e.pos.x += e.vel.x * dt;
+
+			// Collisions
+			if (world.getTile(e.pos) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y}) == 1 || world.getTile({e.pos.x, e.pos.y + 1.5f}) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y + 1.5f}) == 1) {
+				e.pos.x -= e.vel.x * dt;
+				e.vel.x = 0.f;
 			}
-			world.entities[i].pos.x += world.entities[i].vel.x;
-			world.entities[i].pos.y += world.entities[i].vel.y;
+			e.pos.y += e.vel.y * dt;
+			if (world.getTile(e.pos) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y}) == 1 || world.getTile({e.pos.x, e.pos.y + 1.5f}) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y + 1.5f}) == 1) {
+				e.pos.y -= e.vel.y * dt;
+				e.vel.y = 0.f;
+				if (controls.w) {
+					e.vel.y = 6.f;
+				}
+			}
 		}
 		world.camera.pos.x = lerpd(world.camera.pos.x, world.entities[0].pos.x, 0.1f, 1.f);
 		world.camera.pos.y = lerpd(world.camera.pos.y, world.entities[0].pos.y, 0.1f, 1.f);
 	}
 };
+float distance(Vec2 v1, Vec2 v2) {
+	return sqrt(powf(v2.x - v1.x, 2.f) + powf(v2.y - v1.y, 2.f));
+}
 class GameStateRenderer {
 public:
 	GameState* game;
@@ -520,12 +542,14 @@ public:
 
 		for (int x = 0; x < game->world.worldWidth; x++) {
 			for (int y = 0; y < game->world.worldHeight; y++) {
-				if (game->world.tiles[x][y] == 1) addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), {0.f, 0.f});
+				if (game->world.tiles[x][y] == 1 && pointIsInRectangleRange({(float)x - game->world.entities[0].pos.x, (float)y - game->world.entities[0].pos.y}, {20.f, 12.f})) addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), {0.f, 0.f});
 			}
 		}
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
 			addRect(game->world.entities[i].pos.x, game->world.entities[i].pos.y, 0.f, 1.f, 1.5f, getMatID("player"), {0.f, 0.f});
 		}
+		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText("y: " + to_string(game->world.entities[0].pos.y), -0.9f, 0.8f, -0.1f, 0.05f, 0.8f, 2.f, false);
 	}
 	void renderMaterials(int width, int height) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -660,12 +684,15 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_A) controls.a = true;
 		else if (key == GLFW_KEY_S) controls.s = true;
 		else if (key == GLFW_KEY_D) controls.d = true;
+		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
+		else if (key == GLFW_KEY_F) game.world.entities[0].vel.y = 20.f;
 	}
 	else if (action == GLFW_RELEASE) {
 		if (key == GLFW_KEY_W) controls.w = false;
 		else if (key == GLFW_KEY_A) controls.a = false;
 		else if (key == GLFW_KEY_S) controls.s = false;
 		else if (key == GLFW_KEY_D) controls.d = false;
+		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = false;
 	};
 }
 bool mouseIntersectsClipRect(float x, float y, float w, float h) {
@@ -716,7 +743,7 @@ int main(void) {
 
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
-	glfwSwapInterval(1);
+	glfwSwapInterval(0);
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	glEnable(GL_DEPTH_TEST);
@@ -735,11 +762,19 @@ int main(void) {
 		long long newFrameTime = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch())).count();
 		frameTime = (float)(newFrameTime - lastFrameTime) / 1000.f;
 		lastFrameTime = newFrameTime;
+
+		fpsCounter++;
+		if (glfwGetTime() - lastFpsTime > 1.) {
+			lastFpsTime = glfwGetTime();
+			fps = fpsCounter;
+			fpsCounter = 0U;
+		}
+
 		int width, height;
 		
 		glfwGetFramebufferSize(window, &width, &height);
 
-		game.dt = 0.5f * (1.f / 60.f);
+		game.dt = 0.5f * frameTime;
 		for (int i = 0; i < 2; i++) {
 			game.tick(width, height);
 		}
