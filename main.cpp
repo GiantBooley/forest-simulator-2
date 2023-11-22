@@ -425,20 +425,23 @@ class Material {
 };
 class Entity {
 public:
-	Vec2 pos = {20.f, 5.f};
+	Vec2 pos = {20.f, 30.f};
+	Vec2 size = {0.5f, 1.8f};
 	Vec2 vel = {0.f, 0.f};
+	bool onGround = false;
 };
 class World {
 	public:
 	vector<Entity> entities = {{}};
 	Camera camera;
-	const static int worldWidth = 100;
-	const static int worldHeight = 1000;
+	const static int worldWidth = 5000;
+	const static int worldHeight = 100;
 	int tiles[worldWidth][worldHeight];
 	World() {
 		for (int x = 0; x < worldWidth; x++) {
+			int height = (int)(randFloat() * 4.f);
 			for (int y = 0; y < worldHeight; y++) {
-				tiles[x][y] = (int)(randFloat() < 0.1f);
+				tiles[x][y] = y < 20 + height ? (y < 15 ? 2 : 1) : 0;
 			}
 		}
 	}
@@ -456,28 +459,37 @@ class GameState {
 	float dt = 1.f;
 	float x = 0.f;
 	void tick(int width, int height) {
+		controls.previousClipMouse = controls.clipMouse;
+		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
+		controls.clipMouse.y = (0.5f - controls.mouse.y / (float)height) * 2.f;
+		controls.worldMouse.x = controls.clipMouse.x * (10.f * (float)width / (float)height) + world.camera.pos.x;
+		controls.worldMouse.y = controls.clipMouse.y * 10.f + world.camera.pos.y;
 
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
-		float friction = 0.9f;
 		
 		for (int i = 0; i < (int)world.entities.size(); i++) {
 			Entity& e = world.entities[i];
+
+			float friction = e.onGround ? 0.9f : 0.01f;
+			
 			e.vel.y += gravity * dt;
 			float netMovement = controls.d - controls.a;
-			e.vel.x = netMovement * lerpd(e.vel.x, controls.shift ? 6.f : 1.6f, friction, dt);
+			e.vel.x = lerpd(e.vel.x, netMovement * (controls.shift ? 6.f : 1.6f), friction, dt);
 			e.pos.x += e.vel.x * dt;
 
 			// Collisions
-			if (world.getTile(e.pos) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y}) == 1 || world.getTile({e.pos.x, e.pos.y + 1.5f}) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y + 1.5f}) == 1) {
+			if (world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y + e.size.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y + e.size.y}) != 0) {
 				e.pos.x -= e.vel.x * dt;
 				e.vel.x = 0.f;
 			}
 			e.pos.y += e.vel.y * dt;
-			if (world.getTile(e.pos) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y}) == 1 || world.getTile({e.pos.x, e.pos.y + 1.5f}) == 1 || world.getTile({e.pos.x + 1.f, e.pos.y + 1.5f}) == 1) {
+			e.onGround = false;
+			if (world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y + e.size.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y + e.size.y}) != 0) {
 				e.pos.y -= e.vel.y * dt;
+				e.onGround = e.vel.y < 0.f;
 				e.vel.y = 0.f;
-				if (controls.w) {
+				if (controls.w && e.onGround) {
 					e.vel.y = 6.f;
 				}
 			}
@@ -506,6 +518,8 @@ public:
 	vector<Material> materials = {
 		{"solid"					  , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
 		{"dirt"					   , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
+		{"stone"					   , solidV.shader, solidF.shader		  , "resources/texture/stone.png"},
+		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"gui_font"				   , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
@@ -542,11 +556,21 @@ public:
 
 		for (int x = 0; x < game->world.worldWidth; x++) {
 			for (int y = 0; y < game->world.worldHeight; y++) {
-				if (game->world.tiles[x][y] == 1 && pointIsInRectangleRange({(float)x - game->world.entities[0].pos.x, (float)y - game->world.entities[0].pos.y}, {20.f, 12.f})) addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), {0.f, 0.f});
+				if (pointIsInRectangleRange({(float)x - game->world.camera.pos.x, (float)y - game->world.camera.pos.y}, {20.f, 12.f})) {
+					switch (game->world.tiles[x][y]) {
+						case 1:
+						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID(game->world.tiles[x][y + 1] == 0 ? "select" : "dirt"), {0.f, 0.f});
+						break;
+						case 2:
+						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"), {0.f, 0.f});
+						break;
+					}
+				}
 			}
 		}
+		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"), {0.f, 0.f});
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
-			addRect(game->world.entities[i].pos.x, game->world.entities[i].pos.y, 0.f, 1.f, 1.5f, getMatID("player"), {0.f, 0.f});
+			addRect(game->world.entities[i].pos.x - game->world.entities[i].size.x / 2.f, game->world.entities[i].pos.y, 0.f, game->world.entities[i].size.x, game->world.entities[i].size.y, getMatID("player"), {0.f, 0.f});
 		}
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		addText("y: " + to_string(game->world.entities[0].pos.y), -0.9f, 0.8f, -0.1f, 0.05f, 0.8f, 2.f, false);
@@ -578,6 +602,7 @@ public:
 		glBindTexture(GL_TEXTURE_2D, materials[id].texture);
 
 		mat4x4_identity(m);
+		//mat4x4_scale_aniso(m, m, ratio, 1.f, 1.f);
 		mat4x4_translate(m, -game->world.camera.pos.x, -game->world.camera.pos.y, -10.f);
 		/*mat4x4_rotate_X(m, m, game->world.camera.rotation.x);
 		mat4x4_rotate_Y(m, m, game->world.camera.rotation.y);
@@ -703,6 +728,10 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		double xpos, ypos;
 		//getting cursor position
 		glfwGetCursorPos(window, &xpos, &ypos);
+
+		if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
+			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = 1;
+		}
 	}
 	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
 	   double xpos, ypos;
@@ -743,13 +772,13 @@ int main(void) {
 
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
-	glfwSwapInterval(0);
+	glfwSwapInterval(1);
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
-	glEnable(GL_DEPTH_TEST);
-	glEnable(GL_CULL_FACE);
-	glFrontFace(GL_CW);
-	glCullFace(GL_FRONT);
+	//glEnable(GL_DEPTH_TEST);
+	//glEnable(GL_CULL_FACE);
+	//glFrontFace(GL_CW);
+	//glCullFace(GL_FRONT);
 	glEnable(GL_BLEND);
 	glEnable(GL_MULTISAMPLE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
