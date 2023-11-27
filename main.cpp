@@ -430,18 +430,22 @@ public:
 	Vec2 vel = {0.f, 0.f};
 	bool onGround = false;
 };
+struct Tile {
+	string type;
+	float health;
+};
 class World {
 	public:
 	vector<Entity> entities = {{}};
 	Camera camera;
 	const static int worldWidth = 5000;
 	const static int worldHeight = 100;
-	int tiles[worldWidth][worldHeight];
+	Tile tiles[worldWidth][worldHeight];
 	World() {
 		for (int x = 0; x < worldWidth; x++) {
 			int height = (int)(randFloat() * 4.f);
 			for (int y = 0; y < worldHeight; y++) {
-				tiles[x][y] = y < 20 + height ? (y < 15 ? 2 : 1) : 0;
+				tiles[x][y] = {y < 20 + height ? (y < 15 ? "dirt" : "stone") : "air"};
 			}
 		}
 	}
@@ -519,9 +523,10 @@ public:
 		{"solid"					  , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
 		{"dirt"					   , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
 		{"stone"					   , solidV.shader, solidF.shader		  , "resources/texture/stone.png"},
+		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
 		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
-		{"gui_font"				   , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
+		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
 
 	vector<Vertex> vertices = {};
@@ -559,7 +564,10 @@ public:
 				if (pointIsInRectangleRange({(float)x - game->world.camera.pos.x, (float)y - game->world.camera.pos.y}, {20.f, 12.f})) {
 					switch (game->world.tiles[x][y]) {
 						case 1:
-						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID(game->world.tiles[x][y + 1] == 0 ? "select" : "dirt"), {0.f, 0.f});
+						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), {0.f, 0.f});
+						if (game->world.tiles[x][y + 1] == 0) {
+							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"), {0.f, 0.f});
+						}
 						break;
 						case 2:
 						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"), {0.f, 0.f});
@@ -730,13 +738,16 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		glfwGetCursorPos(window, &xpos, &ypos);
 
 		if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
-			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = 1;
+			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = 0;
 		}
 	}
-	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
 	   double xpos, ypos;
 	   //getting cursor position
 	   glfwGetCursorPos(window, &xpos, &ypos);
+	   if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
+			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = 1;
+		}
 	}
 }
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
