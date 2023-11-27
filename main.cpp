@@ -184,6 +184,7 @@ class Controls {
 	   bool s = false;
 	   bool d = false;
 	   bool shift = false;
+	   bool space = false;
 	   Vec2 mouse{0.f, 0.f};
 	   Vec2 worldMouse{0.f, 0.f};
 	   Vec2 clipMouse{0.f, 0.f};
@@ -423,15 +424,24 @@ class Material {
 			vtexcoord_location = glGetAttribLocation(program, "vTexCoord");
 		}
 };
+int newEntityID = 0;
 class Entity {
 public:
 	Vec2 pos = {20.f, 30.f};
 	Vec2 size = {0.5f, 1.8f};
 	Vec2 vel = {0.f, 0.f};
+	int id = newEntityID++;
 	bool onGround = false;
 };
+namespace ttypes {
+	int nuber = 0;
+
+	int air = nuber++;
+	int dirt = nuber++;
+	int stone = nuber++;
+};
 struct Tile {
-	string type;
+	int type;
 	float health;
 };
 class World {
@@ -445,13 +455,25 @@ class World {
 		for (int x = 0; x < worldWidth; x++) {
 			int height = (int)(randFloat() * 4.f);
 			for (int y = 0; y < worldHeight; y++) {
-				tiles[x][y] = {y < 20 + height ? (y < 15 ? "dirt" : "stone") : "air"};
+				tiles[x][y] = {(y < 20 + height) ? (y < 15 ? ttypes::stone : ttypes::dirt) : ttypes::air, 1.f};
 			}
 		}
 	}
-	int getTile(Vec2 pos) {
-		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return 0;
+	Tile getTile(Vec2 pos) {
+		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return {0, 99999.f};
 		return tiles[(int)pos.x][(int)pos.y];
+	}
+	bool areTwoEntitiesCollidingWithEachother(Entity e1, Entity e2) {
+		if (e1.id == e2.id) return false;
+		return e1.pos.x + e1.size.x / 2.f > e2.pos.x - e2.size.x / 2.f && e1.pos.x - e1.size.x / 2.f < e2.pos.x + e2.size.x / 2.f && e1.pos.y + e1.size.y > e2.pos.y && e1.pos.y < e2.pos.y + e2.size.y;
+	}
+	bool isEntityColliding(Entity e) {
+		if (getTile({e.pos.x - e.size.x / 2.f, e.pos.y}).type != ttypes::air || getTile({e.pos.x + e.size.x / 2.f, e.pos.y}).type != ttypes::air || getTile({e.pos.x - e.size.x / 2.f, e.pos.y + e.size.y}).type != ttypes::air || getTile({e.pos.x + e.size.x / 2.f, e.pos.y + e.size.y}).type != ttypes::air) return true;
+		for (int i = 0; i < (int)entities.size(); i++) {
+			if (entities[i].id == e.id) continue;
+			if (areTwoEntitiesCollidingWithEachother(e, entities[i])) return true;
+		}
+		return false;
 	}
 };
 float lerpd(float a, float b, float t, float d) {
@@ -471,6 +493,12 @@ class GameState {
 
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
+
+		if (controls.space) {
+			Entity e = {};
+			e.pos.x = randFloat() * 10.f;
+			if (!world.isEntityColliding(e)) world.entities.push_back(e);
+		}
 		
 		for (int i = 0; i < (int)world.entities.size(); i++) {
 			Entity& e = world.entities[i];
@@ -483,13 +511,13 @@ class GameState {
 			e.pos.x += e.vel.x * dt;
 
 			// Collisions
-			if (world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y + e.size.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y + e.size.y}) != 0) {
+			if (world.isEntityColliding(e)) {
 				e.pos.x -= e.vel.x * dt;
 				e.vel.x = 0.f;
 			}
 			e.pos.y += e.vel.y * dt;
 			e.onGround = false;
-			if (world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y}) != 0 || world.getTile({e.pos.x - e.size.x / 2.f, e.pos.y + e.size.y}) != 0 || world.getTile({e.pos.x + e.size.x / 2.f, e.pos.y + e.size.y}) != 0) {
+			if (world.isEntityColliding(e)) {
 				e.pos.y -= e.vel.y * dt;
 				e.onGround = e.vel.y < 0.f;
 				e.vel.y = 0.f;
@@ -498,8 +526,20 @@ class GameState {
 				}
 			}
 		}
-		world.camera.pos.x = lerpd(world.camera.pos.x, world.entities[0].pos.x, 0.1f, 1.f);
-		world.camera.pos.y = lerpd(world.camera.pos.y, world.entities[0].pos.y, 0.1f, 1.f);
+
+		float targetX = 0.f;
+		float targetY = 0.f;
+		for (int i = 0; i < (int)world.entities.size(); i++) {
+			targetX += world.entities[i].pos.x;
+		}
+		for (int i = 0; i < (int)world.entities.size(); i++) {
+			targetY += world.entities[i].pos.y;
+		}
+		targetX /= (float)world.entities.size();
+		targetY /= (float)world.entities.size();
+		
+		world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.1f, 1.f);
+		world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.1f, 1.f);
 	}
 };
 float distance(Vec2 v1, Vec2 v2) {
@@ -524,6 +564,8 @@ public:
 		{"dirt"					   , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
 		{"stone"					   , solidV.shader, solidF.shader		  , "resources/texture/stone.png"},
 		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
+		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
+		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
 		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
@@ -561,24 +603,29 @@ public:
 
 		for (int x = 0; x < game->world.worldWidth; x++) {
 			for (int y = 0; y < game->world.worldHeight; y++) {
-				if (pointIsInRectangleRange({(float)x - game->world.camera.pos.x, (float)y - game->world.camera.pos.y}, {20.f, 12.f})) {
-					switch (game->world.tiles[x][y]) {
-						case 1:
-						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), {0.f, 0.f});
-						if (game->world.tiles[x][y + 1] == 0) {
-							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"), {0.f, 0.f});
+				switch (game->world.tiles[x][y].type) {
+					case 1:
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"));
+					if (game->world.getTile({(float)x, (float)y + 1.f}).type == ttypes::air) {
+						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"));
+					} else {
+						if (game->world.getTile({(float)x + 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x + 1.f, (float)y}).type == ttypes::dirt) {
+							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"));
 						}
-						break;
-						case 2:
-						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"), {0.f, 0.f});
-						break;
+						if (game->world.getTile({(float)x - 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x - 1.f, (float)y}).type == ttypes::dirt) {
+							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"));
+						}
 					}
+					break;
+					case 2:
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"));
+					break;
 				}
 			}
 		}
-		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"), {0.f, 0.f});
+		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"));
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
-			addRect(game->world.entities[i].pos.x - game->world.entities[i].size.x / 2.f, game->world.entities[i].pos.y, 0.f, game->world.entities[i].size.x, game->world.entities[i].size.y, getMatID("player"), {0.f, 0.f});
+			addRect(game->world.entities[i].pos.x - game->world.entities[i].size.x / 2.f, game->world.entities[i].pos.y, 0.f, game->world.entities[i].size.x, game->world.entities[i].size.y, getMatID("player"));
 		}
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		addText("y: " + to_string(game->world.entities[0].pos.y), -0.9f, 0.8f, -0.1f, 0.05f, 0.8f, 2.f, false);
@@ -622,7 +669,7 @@ public:
 		glUniform1i(materials[id].texture1_location, 0);
 		glUseProgram(materials[id].program);
 		glUniformMatrix4fv(materials[id].mvp_location, 1, GL_FALSE, (const GLfloat*)mvp);
-		glDrawElements(GL_TRIANGLES, indiceses[id].size(), GL_UNSIGNED_INT, (void*)0);
+		glDrawElementsInstanced(GL_TRIANGLES, indiceses[id].size(), GL_UNSIGNED_INT, (void*)0, 1);
 	}
 private:
 	void clearVertices() {
@@ -667,35 +714,33 @@ private:
 	//== clip space ==============
 	//============================
 
-	void addRect(float x, float y, float z, float w, float h, int matId, Vec2 uvOffset) {
+	void addRect(float x, float y, float z, float w, float h, int matId) {
+		if (!pointIsInRectangleRange({x - game->world.camera.pos.x, y - game->world.camera.pos.y}, {20.f, 12.f})) return;
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+h, z, 0.f + uvOffset.x, 0.f + uvOffset.y},
-			{x+w, y+h, z, 1.f + uvOffset.x, 0.f + uvOffset.y},
-			{x  , y  , z, 0.f + uvOffset.x, 1.f + uvOffset.y},
-			{x+w, y  , z, 1.f + uvOffset.x, 1.f + uvOffset.y}
-		});
-	}
-	void addRect(float x, float y, float w, float h, int matId) {
-		unsigned int end = vertices.size();
-		indiceses[matId].insert(indiceses[matId].end(), {
-			0U+end, 2U+end, 1U+end,
-			1U+end, 2U+end, 3U+end
-		});
-		vertices.insert(vertices.end(), {
-			{x  , y+h, 0.f, 0.f, 0.f},
-			{x+w, y+h, 0.f, 1.f, 0.f},
-			{x  , y  , 0.f, 0.f, 1.f},
-			{x+w, y  , 0.f, 1.f, 1.f}
+			{x  , y+h, z, 0.f, 0.f},
+			{x+w, y+h, z, 1.f, 0.f},
+			{x  , y  , z, 0.f, 1.f},
+			{x+w, y  , z, 1.f, 1.f}
 		});
 	}
 	void addCharacter(char character, float x, float y, float z, float w) {
 		Vec2 uv = getCharacterCoords(character);
-		addRect(x, y, z, w, w * aspect, getMatID("gui_font"), uv);
+		unsigned int end = vertices.size();
+		indiceses[getMatID("gui_font")].insert(indiceses[getMatID("gui_font")].end(), {
+			0U+end, 2U+end, 1U+end,
+			1U+end, 2U+end, 3U+end
+		});
+		vertices.insert(vertices.end(), {
+			{x  , y+w*aspect, z, 0.f+uv.x, 0.f+uv.y},
+			{x+w, y+w*aspect, z, 1.f+uv.x, 0.f+uv.y},
+			{x  , y         , z, 0.f+uv.x, 1.f+uv.y},
+			{x+w, y         , z, 1.f+uv.x, 1.f+uv.y}
+		});
 	}
 	void addText(string text, float x, float y, float z, float w, float spacing, float maxWidth, bool centered) {
 		for (int i = 0; i < (int)text.length(); i++) {
@@ -719,6 +764,9 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_D) controls.d = true;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
 		else if (key == GLFW_KEY_F) game.world.entities[0].vel.y = 20.f;
+		else if (key == GLFW_KEY_SPACE) {
+			controls.space = true;
+		};
 	}
 	else if (action == GLFW_RELEASE) {
 		if (key == GLFW_KEY_W) controls.w = false;
@@ -726,6 +774,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_S) controls.s = false;
 		else if (key == GLFW_KEY_D) controls.d = false;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = false;
+		else if (key == GLFW_KEY_SPACE) controls.space = false;
 	};
 }
 bool mouseIntersectsClipRect(float x, float y, float w, float h) {
@@ -738,7 +787,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		glfwGetCursorPos(window, &xpos, &ypos);
 
 		if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
-			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = 0;
+			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].type = ttypes::air;
 		}
 	}
 	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
@@ -746,7 +795,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 	   //getting cursor position
 	   glfwGetCursorPos(window, &xpos, &ypos);
 	   if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
-			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = 1;
+			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::dirt, 1.f};
 		}
 	}
 }
