@@ -46,9 +46,6 @@ public:
 		y = asdy;
 	}
 };
-bool pointIsInRectangleRange(Vec2 point, Vec2 radius) {
-	return point.x < radius.x && point.x > -radius.x && point.y < radius.y && point.y > -radius.y;
-}
 bool lineCircleIntersects(float ax, float ay, float bx, float by, float cx, float cy, float r) {
 	ax -= cx;
 	ay -= cy;
@@ -193,7 +190,11 @@ class Controls {
 class Camera {
 public:
 	Vec2 pos{0.f, 0.f};
+	float zoom = 13.f;
 };
+float distance(Vec2 v1, Vec2 v2) {
+	return sqrt(powf(v2.x - v1.x, 2.f) + powf(v2.y - v1.y, 2.f));
+}
 
 string ftos(float f, int places) {
 	stringstream stream;
@@ -428,10 +429,24 @@ int newEntityID = 0;
 class Entity {
 public:
 	Vec2 pos = {20.f, 30.f};
-	Vec2 size = {0.5f, 1.8f};
+	Vec2 size = {0.4f, 0.4f};
 	Vec2 vel = {0.f, 0.f};
 	int id = newEntityID++;
 	bool onGround = false;
+	string material;
+	int type;
+	int controlsType; // 0-wasd,1-follow near player
+	Entity(int typea) {
+		type = typea;
+		material = type == 0 ? "player" : "dirt";
+		controlsType = type == 0 ? 0 : 1;
+	}
+};
+struct EntityCollision {
+	bool collided;
+	bool isEntityCollision;
+	Entity* entity1;
+	Entity* entity2;
 };
 namespace ttypes {
 	int nuber = 0;
@@ -439,6 +454,7 @@ namespace ttypes {
 	int air = nuber++;
 	int dirt = nuber++;
 	int stone = nuber++;
+	int wood = nuber++;
 };
 struct Tile {
 	int type;
@@ -446,7 +462,7 @@ struct Tile {
 };
 class World {
 	public:
-	vector<Entity> entities = {{}};
+	vector<Entity> entities = {{0}};
 	Camera camera;
 	const static int worldWidth = 5000;
 	const static int worldHeight = 100;
@@ -455,7 +471,7 @@ class World {
 		for (int x = 0; x < worldWidth; x++) {
 			int height = (int)(randFloat() * 4.f);
 			for (int y = 0; y < worldHeight; y++) {
-				tiles[x][y] = {(y < 20 + height) ? (y < 15 ? ttypes::stone : ttypes::dirt) : ttypes::air, 1.f};
+				tiles[x][y] = {(y < 20 + height) ? ((y < (randFloat() * 5.f + 12.f)) ? ttypes::stone : ttypes::dirt) : ttypes::air, 1.f};
 			}
 		}
 	}
@@ -467,13 +483,13 @@ class World {
 		if (e1.id == e2.id) return false;
 		return e1.pos.x + e1.size.x / 2.f > e2.pos.x - e2.size.x / 2.f && e1.pos.x - e1.size.x / 2.f < e2.pos.x + e2.size.x / 2.f && e1.pos.y + e1.size.y > e2.pos.y && e1.pos.y < e2.pos.y + e2.size.y;
 	}
-	bool isEntityColliding(Entity e) {
-		if (getTile({e.pos.x - e.size.x / 2.f, e.pos.y}).type != ttypes::air || getTile({e.pos.x + e.size.x / 2.f, e.pos.y}).type != ttypes::air || getTile({e.pos.x - e.size.x / 2.f, e.pos.y + e.size.y}).type != ttypes::air || getTile({e.pos.x + e.size.x / 2.f, e.pos.y + e.size.y}).type != ttypes::air) return true;
+	EntityCollision getEntityCollision(Entity e) {
+		if (getTile({e.pos.x - e.size.x / 2.f, e.pos.y}).type != ttypes::air || getTile({e.pos.x + e.size.x / 2.f, e.pos.y}).type != ttypes::air || getTile({e.pos.x - e.size.x / 2.f, e.pos.y + e.size.y}).type != ttypes::air || getTile({e.pos.x + e.size.x / 2.f, e.pos.y + e.size.y}).type != ttypes::air) return {true, false, &e, nullptr};
 		for (int i = 0; i < (int)entities.size(); i++) {
 			if (entities[i].id == e.id) continue;
-			if (areTwoEntitiesCollidingWithEachother(e, entities[i])) return true;
+			if (areTwoEntitiesCollidingWithEachother(e, entities[i])) return {true, true, &e, &entities[1]};
 		}
-		return false;
+		return {false, false, &e, nullptr};
 	}
 };
 float lerpd(float a, float b, float t, float d) {
@@ -488,40 +504,71 @@ class GameState {
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
 		controls.clipMouse.y = (0.5f - controls.mouse.y / (float)height) * 2.f;
-		controls.worldMouse.x = controls.clipMouse.x * (10.f * (float)width / (float)height) + world.camera.pos.x;
-		controls.worldMouse.y = controls.clipMouse.y * 10.f + world.camera.pos.y;
+		controls.worldMouse.x = controls.clipMouse.x * (world.camera.zoom * (float)width / (float)height) + world.camera.pos.x;
+		controls.worldMouse.y = controls.clipMouse.y * world.camera.zoom + world.camera.pos.y;
 
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
 		if (controls.space) {
-			Entity e = {};
+			Entity e = {1};
 			e.pos.x = randFloat() * 10.f;
-			if (!world.isEntityColliding(e)) world.entities.push_back(e);
+			if (!world.getEntityCollision(e).collided) world.entities.push_back(e);
 		}
-		
+		//find player is
+		vector<int> playerIs;
+		for (int i = 0; i < (int)world.entities.size(); i++) {
+			if (world.entities[i].type == 0) playerIs.push_back(i);
+		}
 		for (int i = 0; i < (int)world.entities.size(); i++) {
 			Entity& e = world.entities[i];
+
+			bool controlsLeft = false;
+			bool controlsRight = false;
+			bool controlsUp = false;
+			if (e.controlsType == 0) {
+				controlsLeft = controls.a;
+				controlsRight = controls.d;
+				controlsUp = controls.w;
+			} else {
+				int nearestPlayerI = -1;
+				float nearestPlayerDistance = 0.f;
+				for (int j = 0; j < (int)playerIs.size(); j++) {
+					float currentDistance = distance(world.entities[playerIs[j]].pos, e.pos);;
+					if ((nearestPlayerI == -1 || currentDistance < nearestPlayerDistance) && world.entities[playerIs[j]].id != e.id) {
+						nearestPlayerDistance = currentDistance;
+						nearestPlayerI = j;
+					}
+				}
+				if (nearestPlayerI != -1) {
+					controlsUp = true;
+					controlsLeft = (world.entities[playerIs[nearestPlayerI]].pos.x < e.pos.x);
+					controlsRight = (world.entities[playerIs[nearestPlayerI]].pos.x > e.pos.x);
+				}
+			}
 
 			float friction = e.onGround ? 0.9f : 0.01f;
 			
 			e.vel.y += gravity * dt;
-			float netMovement = controls.d - controls.a;
+			float netMovement = controlsRight - controlsLeft;
 			e.vel.x = lerpd(e.vel.x, netMovement * (controls.shift ? 6.f : 1.6f), friction, dt);
 			e.pos.x += e.vel.x * dt;
 
 			// Collisions
-			if (world.isEntityColliding(e)) {
+			EntityCollision collision = world.getEntityCollision(e);
+			if (collision.collided) {
 				e.pos.x -= e.vel.x * dt;
 				e.vel.x = 0.f;
 			}
 			e.pos.y += e.vel.y * dt;
 			e.onGround = false;
-			if (world.isEntityColliding(e)) {
+
+			collision = world.getEntityCollision(e);
+			if (collision.collided) {
 				e.pos.y -= e.vel.y * dt;
 				e.onGround = e.vel.y < 0.f;
 				e.vel.y = 0.f;
-				if (controls.w && e.onGround) {
+				if (controlsUp && e.onGround) {
 					e.vel.y = 6.f;
 				}
 			}
@@ -529,22 +576,19 @@ class GameState {
 
 		float targetX = 0.f;
 		float targetY = 0.f;
-		for (int i = 0; i < (int)world.entities.size(); i++) {
-			targetX += world.entities[i].pos.x;
+		for (int i = 0; i < (int)playerIs.size(); i++) {
+			targetX += world.entities[playerIs[i]].pos.x;
 		}
-		for (int i = 0; i < (int)world.entities.size(); i++) {
-			targetY += world.entities[i].pos.y;
+		for (int i = 0; i < (int)playerIs.size(); i++) {
+			targetY += world.entities[playerIs[i]].pos.y;
 		}
-		targetX /= (float)world.entities.size();
-		targetY /= (float)world.entities.size();
+		targetX /= (float)playerIs.size();
+		targetY /= (float)playerIs.size();
 		
 		world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.1f, 1.f);
 		world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.1f, 1.f);
 	}
 };
-float distance(Vec2 v1, Vec2 v2) {
-	return sqrt(powf(v2.x - v1.x, 2.f) + powf(v2.y - v1.y, 2.f));
-}
 class GameStateRenderer {
 public:
 	GameState* game;
@@ -563,6 +607,7 @@ public:
 		{"solid"					  , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
 		{"dirt"					   , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
 		{"stone"					   , solidV.shader, solidF.shader		  , "resources/texture/stone.png"},
+		{"wood"					   , solidV.shader, solidF.shader		  , "resources/texture/wood.png"},
 		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
 		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
 		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
@@ -570,6 +615,10 @@ public:
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
+	float cameraLeft;
+	float cameraRight;
+	float cameraBottom;
+	float cameraTop;
 
 	vector<Vertex> vertices = {};
 	vector<vector<unsigned int>> indiceses = {};
@@ -600,9 +649,16 @@ public:
 	void buildThem(int width, int height) {
 		aspect = (float)width / (float)height;
 		clearVertices();
-
+		cameraLeft = game->world.camera.pos.x - 2.f * game->world.camera.zoom;
+		cameraRight = game->world.camera.pos.x + 2.f * game->world.camera.zoom;
+		cameraBottom = game->world.camera.pos.y - 2.f * game->world.camera.zoom / aspect;
+		cameraTop = game->world.camera.pos.y + 2.f * game->world.camera.zoom / aspect;
 		for (int x = 0; x < game->world.worldWidth; x++) {
+			if ((float)x + 1.f < cameraLeft) continue;
+			if ((float)x > cameraRight) break;
 			for (int y = 0; y < game->world.worldHeight; y++) {
+				if ((float)y + 1.f < cameraBottom) continue;
+				if ((float)y > cameraTop) break;
 				switch (game->world.tiles[x][y].type) {
 					case 1:
 					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"));
@@ -620,20 +676,27 @@ public:
 					case 2:
 					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"));
 					break;
+					case 3:
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"));
+					break;
 				}
 			}
 		}
 		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"));
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
-			addRect(game->world.entities[i].pos.x - game->world.entities[i].size.x / 2.f, game->world.entities[i].pos.y, 0.f, game->world.entities[i].size.x, game->world.entities[i].size.y, getMatID("player"));
+			addRect(game->world.entities[i].pos.x - game->world.entities[i].size.x / 2.f, game->world.entities[i].pos.y, 0.f, game->world.entities[i].size.x, game->world.entities[i].size.y, getMatID(game->world.entities[i].material));
 		}
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		addText("y: " + to_string(game->world.entities[0].pos.y), -0.9f, 0.8f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		int tris = 0;
+		for (int i = 0; i < (int)indiceses.size(); i++) {
+			tris += (int)indiceses[i].size() / 3;
+		}
+		addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 	}
 	void renderMaterials(int width, int height) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glViewport(0, 0, width, height);
-
 		buildThem(width, height);
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertices[0]), &vertices[0], GL_STATIC_DRAW);
 		for (int i = 0; i < (int)materials.size(); i++) {
@@ -658,7 +721,7 @@ public:
 
 		mat4x4_identity(m);
 		//mat4x4_scale_aniso(m, m, ratio, 1.f, 1.f);
-		mat4x4_translate(m, -game->world.camera.pos.x, -game->world.camera.pos.y, -10.f);
+		mat4x4_translate(m, -game->world.camera.pos.x, -game->world.camera.pos.y, -game->world.camera.zoom);
 		/*mat4x4_rotate_X(m, m, game->world.camera.rotation.x);
 		mat4x4_rotate_Y(m, m, game->world.camera.rotation.y);
 		mat4x4_rotate_Z(m, m, game->world.camera.rotation.z);*/
@@ -669,7 +732,7 @@ public:
 		glUniform1i(materials[id].texture1_location, 0);
 		glUseProgram(materials[id].program);
 		glUniformMatrix4fv(materials[id].mvp_location, 1, GL_FALSE, (const GLfloat*)mvp);
-		glDrawElementsInstanced(GL_TRIANGLES, indiceses[id].size(), GL_UNSIGNED_INT, (void*)0, 1);
+		glDrawElements(GL_TRIANGLES, indiceses[id].size(), GL_UNSIGNED_INT, (void*)0);
 	}
 private:
 	void clearVertices() {
@@ -715,7 +778,7 @@ private:
 	//============================
 
 	void addRect(float x, float y, float z, float w, float h, int matId) {
-		if (!pointIsInRectangleRange({x - game->world.camera.pos.x, y - game->world.camera.pos.y}, {20.f, 12.f})) return;
+		if (x + w < cameraLeft || x > cameraRight || y + h < cameraBottom || y > cameraTop) return;
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
 			0U+end, 2U+end, 1U+end,
@@ -764,6 +827,8 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_D) controls.d = true;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
 		else if (key == GLFW_KEY_F) game.world.entities[0].vel.y = 20.f;
+		else if (key == GLFW_KEY_UP) game.world.camera.zoom--;
+		else if (key == GLFW_KEY_DOWN) game.world.camera.zoom++;
 		else if (key == GLFW_KEY_SPACE) {
 			controls.space = true;
 		};
@@ -795,7 +860,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 	   //getting cursor position
 	   glfwGetCursorPos(window, &xpos, &ypos);
 	   if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
-			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::dirt, 1.f};
+			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::wood, 1.f};
 		}
 	}
 }
@@ -843,7 +908,7 @@ int main(void) {
 	glEnable(GL_MULTISAMPLE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
-	glClearColor(0.5f, 0.5f, 0.9f, 1.f);
+	glClearColor(0.4f, 0.4f, 0.9f, 1.f);
 	lastFrameTime = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch())).count();
 	
 	GameStateRenderer renderer{&game};
@@ -863,7 +928,7 @@ int main(void) {
 		
 		glfwGetFramebufferSize(window, &width, &height);
 
-		game.dt = 0.5f * frameTime;
+		game.dt = min(0.5f * frameTime, 0.5f);
 		for (int i = 0; i < 2; i++) {
 			game.tick(width, height);
 		}

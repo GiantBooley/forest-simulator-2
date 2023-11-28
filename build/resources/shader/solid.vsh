@@ -9,8 +9,9 @@ out vec2 texCoord;
 out vec3 pos;
 
 void main() {
-	//vPos.y += (float)gl_InstanceID;
-	vec4 position = MVP * vec4(vPos, 1.0);
+	vec3 newPos = vPos;
+
+	vec4 position = MVP * vec4(newPos, 1.0);
 	gl_Position = position;
 	texCoord = vTexCoord;
 	pos = vPos;
