@@ -6,6 +6,7 @@ in vec3 pos;
 out vec4 FragColor;
 
 uniform sampler2D texture1;
+uniform float time;
 
 void main() {
 	vec4 color = texture2D(texture1, texCoord);

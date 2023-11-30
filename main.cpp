@@ -182,6 +182,7 @@ class Controls {
 	   bool d = false;
 	   bool shift = false;
 	   bool space = false;
+	   bool mouseDown = false;
 	   Vec2 mouse{0.f, 0.f};
 	   Vec2 worldMouse{0.f, 0.f};
 	   Vec2 clipMouse{0.f, 0.f};
@@ -384,7 +385,7 @@ class Shader {
 };
 class Material {
 	public:
-		GLint mvp_location, texture1_location, vpos_location, vtexcoord_location;
+		GLint mvp_location, texture1_location, vpos_location, vtexcoord_location, time_location;
 		GLuint program;
 
 		int textureWidth, textureHeight, textureColorChannels;
@@ -421,6 +422,7 @@ class Material {
 
 			mvp_location = glGetUniformLocation(program, "MVP");
 			texture1_location = glGetUniformLocation(program, "texture1");
+			time_location = glGetUniformLocation(program, "time");
 			vpos_location = glGetAttribLocation(program, "vPos");
 			vtexcoord_location = glGetAttribLocation(program, "vTexCoord");
 		}
@@ -438,11 +440,12 @@ public:
 	int controlsType; // 0-wasd,1-follow near player
 	float health;
 	float maxHealth;
+	float speed = 1.6f;
 	Entity(int typea) {
 		type = typea;
 		material = type == 0 ? "player" : "sentry";
 		controlsType = type == 0 ? 0 : 1;
-		health = type == 0 ? 100.f : 9.f;
+		health = type == 0 ? 10.f : 9.f;
 		maxHealth = health;
 	}
 };
@@ -459,6 +462,8 @@ namespace ttypes {
 	int dirt = nuber++;
 	int stone = nuber++;
 	int wood = nuber++;
+	int log = nuber++;
+	int leaves = nuber++;
 };
 struct Tile {
 	int type;
@@ -502,14 +507,45 @@ class World {
 	const static int worldWidth = 5000;
 	const static int worldHeight = 1000;
 	Tile tiles[worldWidth][worldHeight];
+	unsigned short int lightmap[worldWidth][worldHeight];
 	PerlinGenerator gen;
+	float time = 0.f;
 	float getGeneratorHeight(float x) {
 		return gen.getVal(x * 0.1f) * 10.f + 700.f;
 	}
 	World() {
+		// level generation
 		for (int x = 0; x < worldWidth; x++) {
+			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
-				tiles[x][y] = {y < getGeneratorHeight(x) ? ttypes::dirt : ttypes::air, 1.f};
+				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air, 1.f};
+			}
+		}
+		// tree generation
+		for (int x = 2; x < worldWidth - 2; x++) {
+			for (int y = worldHeight - 1 - 10; y >= 1; y--) {
+				if (tiles[x][y].type == ttypes::air && tiles[x][y - 1].type == ttypes::dirt && randFloat() < 0.05f) {
+					tiles[x][y].type = ttypes::log;
+					tiles[x][y + 1].type = ttypes::log;
+					tiles[x][y + 2].type = ttypes::log;
+					tiles[x][y + 3].type = ttypes::log;
+					tiles[x][y + 4].type = ttypes::log;
+					tiles[x][y + 5].type = ttypes::log;
+					tiles[x][y + 6].type = ttypes::leaves;
+					tiles[x][y + 7].type = ttypes::leaves;
+					tiles[x][y + 8].type = ttypes::leaves;
+					tiles[x - 1][y + 6].type = ttypes::leaves;
+					tiles[x - 1][y + 7].type = ttypes::leaves;
+					tiles[x - 1][y + 8].type = ttypes::leaves;
+					tiles[x + 1][y + 6].type = ttypes::leaves;
+					tiles[x + 1][y + 7].type = ttypes::leaves;
+					tiles[x + 1][y + 8].type = ttypes::leaves;
+					
+					tiles[x - 2][y + 6].type = ttypes::leaves;
+					tiles[x - 2][y + 7].type = ttypes::leaves;
+					tiles[x + 2][y + 6].type = ttypes::leaves;
+					tiles[x + 2][y + 7].type = ttypes::leaves;
+				}
 			}
 		}
 	}
@@ -547,6 +583,13 @@ class GameState {
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
+
+		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
+			world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].health -= 1.f * dt;
+			if (world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].health <= 0.f) 
+				world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::air, 1.f};
+		}
+
 		if (controls.space) {
 			Entity e = {1};
 			e.pos.x = randFloat() * 10.f;
@@ -559,11 +602,15 @@ class GameState {
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			Entity* e = &world.entities[i];
-			if (randFloat() < 0.01f) {
+			/*if (randFloat() < 0.0005f) {
 				Entity recentlydeveloped = {e->type};
-				recentlydeveloped.pos.y += e->size.y;
-				world.entities.push_back(recentlydeveloped);
-			}
+				if (!world.getEntityCollision(&recentlydeveloped).collided) {
+					recentlydeveloped.pos.y = e->pos.y + e->size.y;
+					recentlydeveloped.pos.x = e->pos.x;
+					recentlydeveloped.speed += 0.3f * (randFloat() - 0.5f);
+					world.entities.push_back(recentlydeveloped);
+				}
+			}*/
 			bool controlsLeft = false;
 			bool controlsRight = false;
 			bool controlsUp = false;
@@ -592,7 +639,7 @@ class GameState {
 			
 			e->vel.y += gravity * dt;
 			float netMovement = controlsRight - controlsLeft;
-			e->vel.x = lerpd(e->vel.x, netMovement * (controls.shift ? 6.f : 1.6f), friction, dt);
+			e->vel.x = lerpd(e->vel.x, netMovement * (controls.shift ? 6.f : e->speed), friction, dt);
 			e->pos.x += e->vel.x * dt;
 
 			// Collisions
@@ -612,7 +659,7 @@ class GameState {
 					e->vel.y = 6.f;
 				}
 			}
-			if (e->type == 1) e->health -= 1.f * dt;
+			if (e->type == 1 || true) e->health -= 1.f * dt;
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			if (world.entities[i].health <= 0.f) {
@@ -627,19 +674,21 @@ class GameState {
 			if (world.particles[i].time <= 0) world.particles.erase(world.particles.begin() + i);
 		}
 
-		float targetX = 0.f;
-		float targetY = 0.f;
-		for (int i = 0; i < (int)playerIs.size(); i++) {
-			targetX += world.entities[playerIs[i]].pos.x;
+		if ((int)playerIs.size() > 0) {
+			float targetX = 0.f;
+			float targetY = 0.f;
+			for (int i = 0; i < (int)playerIs.size(); i++) {
+				targetX += world.entities[playerIs[i]].pos.x;
+				targetY += world.entities[playerIs[i]].pos.y;
+			}
+			targetX /= (float)playerIs.size();
+			targetY /= (float)playerIs.size();
+
+			world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.1f, 1.f);
+			world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.1f, 1.f);
 		}
-		for (int i = 0; i < (int)playerIs.size(); i++) {
-			targetY += world.entities[playerIs[i]].pos.y;
-		}
-		targetX /= (float)playerIs.size();
-		targetY /= (float)playerIs.size();
 		
-		world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.1f, 1.f);
-		world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.1f, 1.f);
+		world.time += dt;
 	}
 };
 class GameStateRenderer {
@@ -657,11 +706,12 @@ public:
 	Shader guiF{"resources/shader/gui.fsh", GL_FRAGMENT_SHADER};
 
 	vector<Material> materials = {
-		{"solid"					  , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"}, 
 		{"sky"				      , solidV.shader , solidF.shader			, "resources/texture/sky.png"}, 
 		{"dirt"					   , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
 		{"stone"					   , solidV.shader, solidF.shader		  , "resources/texture/stone.png"},
 		{"wood"					   , solidV.shader, solidF.shader		  , "resources/texture/wood.png"},
+		{"log"					   , solidV.shader, solidF.shader		  , "resources/texture/log.png"},
+		{"leaves"					   , solidV.shader, solidF.shader		  , "resources/texture/leaves.png"},
 		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
 		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
 		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
@@ -711,6 +761,7 @@ public:
 		cameraBottom = game->world.camera.pos.y - 2.f * game->world.camera.zoom / aspect;
 		cameraTop = game->world.camera.pos.y + 2.f * game->world.camera.zoom / aspect;
 		addRect(-20000.f, -10000.f, -10000.f, 40000.f, 20000.f, getMatID("sky"));
+		int worldRects = 0;
 		for (int x = 0; x < game->world.worldWidth; x++) {
 			if ((float)x + 1.f < cameraLeft) continue;
 			if ((float)x > cameraRight) break;
@@ -719,23 +770,29 @@ public:
 				if ((float)y > cameraTop) break;
 				switch (game->world.tiles[x][y].type) {
 					case 1:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"));
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"));worldRects++;
 					if (game->world.getTile({(float)x, (float)y + 1.f}).type == ttypes::air) {
-						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"));
+						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"));worldRects++;
 					} else {
 						if (game->world.getTile({(float)x + 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x + 1.f, (float)y}).type == ttypes::dirt) {
-							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"));
+							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"));worldRects++;
 						}
 						if (game->world.getTile({(float)x - 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x - 1.f, (float)y}).type == ttypes::dirt) {
-							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"));
+							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"));worldRects++;
 						}
 					}
 					break;
 					case 2:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"));
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"));worldRects++;
 					break;
 					case 3:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"));
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"));worldRects++;
+					break;
+					case 4:
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("log"));worldRects++;
+					break;
+					case 5:
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("leaves"));worldRects++;
 					break;
 				}
 			}
@@ -748,7 +805,6 @@ public:
 			addRect(game->world.particles[i].pos.x - 0.5f, game->world.particles[i].pos.y - 0.5f, 0.f, 1.f, 1.f, getMatID(game->world.particles[i].material));
 		}
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
-		addText("y: " + to_string(game->world.entities[0].pos.y), -0.9f, 0.8f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		int tris = 0;
 		for (int i = 0; i < (int)indiceses.size(); i++) {
 			tris += (int)indiceses[i].size() / 3;
@@ -790,8 +846,10 @@ public:
 		mat4x4_perspective(p, 1.57f, ratio, 0.1f, 20000.f);
 		mat4x4_mul(mvp, p, m);
 
-		glUniform1i(materials[id].texture1_location, 0);
 		glUseProgram(materials[id].program);
+
+		glUniform1i(materials[id].texture1_location, 0);
+		glUniform1f(materials[id].time_location, game->world.time);
 		glUniformMatrix4fv(materials[id].mvp_location, 1, GL_FALSE, (const GLfloat*)mvp);
 		glDrawElements(GL_TRIANGLES, indiceses[id].size(), GL_UNSIGNED_INT, (void*)0);
 	}
@@ -887,7 +945,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_S) controls.s = true;
 		else if (key == GLFW_KEY_D) controls.d = true;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
-		else if (key == GLFW_KEY_F) game.world.entities[0].vel.y = 20.f;
 		else if (key == GLFW_KEY_UP) game.world.camera.zoom--;
 		else if (key == GLFW_KEY_DOWN) game.world.camera.zoom++;
 		else if (key == GLFW_KEY_SPACE) {
@@ -911,10 +968,13 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		double xpos, ypos;
 		//getting cursor position
 		glfwGetCursorPos(window, &xpos, &ypos);
-
-		if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
-			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].type = ttypes::air;
-		}
+		controls.mouseDown = true;
+	}
+	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+		double xpos, ypos;
+		//getting cursor position
+		glfwGetCursorPos(window, &xpos, &ypos);
+		controls.mouseDown = false;
 	}
 	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
 	   double xpos, ypos;
