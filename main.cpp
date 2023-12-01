@@ -445,7 +445,7 @@ public:
 		type = typea;
 		material = type == 0 ? "player" : "sentry";
 		controlsType = type == 0 ? 0 : 1;
-		health = type == 0 ? 10.f : 9.f;
+		health = type == 0 ? 10123123123.f : 912.f;
 		maxHealth = health;
 	}
 };
@@ -456,18 +456,30 @@ struct EntityCollision {
 	Entity* entity2;
 };
 namespace ttypes {
-	int nuber = 0;
-
-	int air = nuber++;
-	int dirt = nuber++;
-	int stone = nuber++;
-	int wood = nuber++;
-	int log = nuber++;
-	int leaves = nuber++;
-};
-struct Tile {
+	enum types {
+		air,dirt,stone,wood,log,leaves
+	};
+}
+class Tile {
+	public:
 	int type;
-	float health;
+	float health = 1.f;
+	float maxHealth;
+	Tile(int atype) {
+		type = atype;
+		switch (type) {
+			case (ttypes::air):health = 43289.f;break;
+			case (ttypes::dirt):health = 3.f;break;
+			case (ttypes::stone):health = 60.f;break;
+			case (ttypes::wood):health = 7.f;break;
+			case (ttypes::log):health = 10.f;break;
+			case (ttypes::leaves):health = 0.5f;break;
+		}
+		maxHealth = health;
+	}
+	Tile() {
+		Tile((int)ttypes::air);
+	}
 };
 class PerlinGenerator {
 	public:
@@ -507,50 +519,51 @@ class World {
 	const static int worldWidth = 5000;
 	const static int worldHeight = 1000;
 	Tile tiles[worldWidth][worldHeight];
-	unsigned short int lightmap[worldWidth][worldHeight];
+	unsigned char lightmap[worldWidth][worldHeight];
 	PerlinGenerator gen;
 	float time = 0.f;
 	float getGeneratorHeight(float x) {
 		return gen.getVal(x * 0.1f) * 10.f + 700.f;
 	}
 	World() {
-		// level generation
+		// level generation generate generator generating generated generates generatings
 		for (int x = 0; x < worldWidth; x++) {
 			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
-				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air, 1.f};
+				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
+				lightmap[x][y] = 255 - (unsigned short)(clamp(x - 30 + y - 700, 0, 255));
 			}
 		}
 		// tree generation
 		for (int x = 2; x < worldWidth - 2; x++) {
 			for (int y = worldHeight - 1 - 10; y >= 1; y--) {
 				if (tiles[x][y].type == ttypes::air && tiles[x][y - 1].type == ttypes::dirt && randFloat() < 0.05f) {
-					tiles[x][y].type = ttypes::log;
-					tiles[x][y + 1].type = ttypes::log;
-					tiles[x][y + 2].type = ttypes::log;
-					tiles[x][y + 3].type = ttypes::log;
-					tiles[x][y + 4].type = ttypes::log;
-					tiles[x][y + 5].type = ttypes::log;
-					tiles[x][y + 6].type = ttypes::leaves;
-					tiles[x][y + 7].type = ttypes::leaves;
-					tiles[x][y + 8].type = ttypes::leaves;
-					tiles[x - 1][y + 6].type = ttypes::leaves;
-					tiles[x - 1][y + 7].type = ttypes::leaves;
-					tiles[x - 1][y + 8].type = ttypes::leaves;
-					tiles[x + 1][y + 6].type = ttypes::leaves;
-					tiles[x + 1][y + 7].type = ttypes::leaves;
-					tiles[x + 1][y + 8].type = ttypes::leaves;
+					tiles[x][y] = ttypes::log;
+					tiles[x][y + 1] = {ttypes::log};
+					tiles[x][y + 2] = {ttypes::log};
+					tiles[x][y + 3] = {ttypes::log};
+					tiles[x][y + 4] = {ttypes::log};
+					tiles[x][y + 5] = {ttypes::log};
+					tiles[x][y + 6] = {ttypes::leaves};
+					tiles[x][y + 7] = {ttypes::leaves};
+					tiles[x][y + 8] = {ttypes::leaves};
+					tiles[x - 1][y + 6] = {ttypes::leaves};
+					tiles[x - 1][y + 7] = {ttypes::leaves};
+					tiles[x - 1][y + 8] = {ttypes::leaves};
+					tiles[x + 1][y + 6] = {ttypes::leaves};
+					tiles[x + 1][y + 7] = {ttypes::leaves};
+					tiles[x + 1][y + 8] = {ttypes::leaves};
 					
-					tiles[x - 2][y + 6].type = ttypes::leaves;
-					tiles[x - 2][y + 7].type = ttypes::leaves;
-					tiles[x + 2][y + 6].type = ttypes::leaves;
-					tiles[x + 2][y + 7].type = ttypes::leaves;
+					tiles[x - 2][y + 6] = {ttypes::leaves};
+					tiles[x - 2][y + 7] = {ttypes::leaves};
+					tiles[x + 2][y + 6] = {ttypes::leaves};
+					tiles[x + 2][y + 7] = {ttypes::leaves};
 				}
 			}
 		}
 	}
 	Tile getTile(Vec2 pos) {
-		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return {0, 99999.f};
+		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return {0};
 		return tiles[(int)pos.x][(int)pos.y];
 	}
 	bool areTwoEntitiesCollidingWithEachother(Entity* e1, Entity* e2) {
@@ -587,7 +600,7 @@ class GameState {
 		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
 			world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].health -= 1.f * dt;
 			if (world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].health <= 0.f) 
-				world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::air, 1.f};
+				world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::air};
 		}
 
 		if (controls.space) {
@@ -715,8 +728,10 @@ public:
 		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
 		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
 		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
+		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"sentry"					  , solidV.shader, solidF.shader		  , "resources/texture/sentry.png"},
+		{"light_map"					   , solidV.shader, solidF.shader		  , "resources/texture/light_map.png"},
 		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
 
@@ -761,7 +776,6 @@ public:
 		cameraBottom = game->world.camera.pos.y - 2.f * game->world.camera.zoom / aspect;
 		cameraTop = game->world.camera.pos.y + 2.f * game->world.camera.zoom / aspect;
 		addRect(-20000.f, -10000.f, -10000.f, 40000.f, 20000.f, getMatID("sky"));
-		int worldRects = 0;
 		for (int x = 0; x < game->world.worldWidth; x++) {
 			if ((float)x + 1.f < cameraLeft) continue;
 			if ((float)x > cameraRight) break;
@@ -770,31 +784,35 @@ public:
 				if ((float)y > cameraTop) break;
 				switch (game->world.tiles[x][y].type) {
 					case 1:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"));worldRects++;
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"));
 					if (game->world.getTile({(float)x, (float)y + 1.f}).type == ttypes::air) {
-						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"));worldRects++;
+						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"));
 					} else {
 						if (game->world.getTile({(float)x + 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x + 1.f, (float)y}).type == ttypes::dirt) {
-							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"));worldRects++;
+							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"));
 						}
 						if (game->world.getTile({(float)x - 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x - 1.f, (float)y}).type == ttypes::dirt) {
-							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"));worldRects++;
+							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"));
 						}
 					}
 					break;
 					case 2:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"));worldRects++;
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"));
 					break;
 					case 3:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"));worldRects++;
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"));
 					break;
 					case 4:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("log"));worldRects++;
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("log"));
 					break;
 					case 5:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("leaves"));worldRects++;
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("leaves"));
 					break;
 				}
+				if (game->world.tiles[x][y].health < game->world.tiles[x][y].maxHealth) {
+					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.tiles[x][y].maxHealth - game->world.tiles[x][y].health) / game->world.tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
+				}
+				addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("light_map"), (float)game->world.lightmap[x][y] / 256.f, 0.f, 1.f / 256.f, 1.f);
 			}
 		}
 		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"));
@@ -896,7 +914,7 @@ private:
 	//== clip space ==============
 	//============================
 
-	void addRect(float x, float y, float z, float w, float h, int matId) {
+	void addRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		if (x + w < cameraLeft || x > cameraRight || y + h < cameraBottom || y > cameraTop) return;
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
@@ -904,10 +922,10 @@ private:
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+h, z, 0.f, 0.f},
-			{x+w, y+h, z, 1.f, 0.f},
-			{x  , y  , z, 0.f, 1.f},
-			{x+w, y  , z, 1.f, 1.f}
+			{x  , y+h, z, u    , v    },
+			{x+w, y+h, z, u + s, v    },
+			{x  , y  , z, u    , v + t},
+			{x+w, y  , z, u + s, v + t}
 		});
 	}
 	void addCharacter(char character, float x, float y, float z, float w) {
@@ -981,7 +999,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 	   //getting cursor position
 	   glfwGetCursorPos(window, &xpos, &ypos);
 	   if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
-			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::wood, 1.f};
+			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::wood};
 		}
 	}
 }
