@@ -28,6 +28,8 @@ GLFWwindow* window;
 struct Vertex {
 	float x, y, z;
 	float u, v;
+	float tileHealth;
+	float lr, lg, lb;
 };
 
 float randFloat() {
@@ -45,23 +47,13 @@ public:
 		x = asdx;
 		y = asdy;
 	}
+	Vec2() {
+		Vec2(0.f, 0.f);
+	}
 };
-bool lineCircleIntersects(float ax, float ay, float bx, float by, float cx, float cy, float r) {
-	ax -= cx;
-	ay -= cy;
-	bx -= cx;
-	by -= cy;
-	float a = pow(bx - ax, 2.f) + pow(by - ay, 2.f);
-	float b = 2.f*(ax*(bx - ax) + ay*(by - ay));
-	float c = pow(ax, 2.f) + pow(ay, 2.f) - pow(r, 2.f);
-	float disc = pow(b, 2.f) - 4.f*a*c;
-	if(disc <= 0.f) return false;
-	float sqrtdisc = sqrt(disc);
-	float t1 = (-b + sqrtdisc)/(2.f*a);
-	float t2 = (-b - sqrtdisc)/(2.f*a);
-	if((0.f < t1 && t1 < 1.f) || (0.f < t2 && t2 < 1.f)) return true;
-	return false;
-}
+struct iVec2 {
+	int x, y;
+};
 
 
 int convertFileToOpenALFormat(AudioFile<float>* audioFile) {
@@ -112,18 +104,6 @@ class SoundDoer {
 	public:
 	ALCdevice* device;
 	ALCcontext* context;
-	#define SOUND_ELECTRICITY 1
-	#define SOUND_IRON 2
-	#define SOUND_BUTTON 3
-	#define SOUND_HURT 4
-	#define SOUND_BOSS_DEATH 5
-	#define SOUND_DEATH 6
-	#define SOUND_PLACE 7
-	#define SOUND_MONEY 8
-	#define SOUND_MUSIC1 9
-	#define SOUND_ROLL 10
-	#define SOUND_ROBOT 11
-	#define SOUND_MUSIC_HUMAN_PASSAGES 12
 	vector<SoundDoerSound> sounds = {
 		//{false, 1.f, "resources/audio/brain.wav"},
 	};
@@ -385,7 +365,7 @@ class Shader {
 };
 class Material {
 	public:
-		GLint mvp_location, texture1_location, vpos_location, vtexcoord_location, time_location;
+		GLint mvp_location, texture1_location, vpos_location, vtexcoord_location, vtilehealth_location, vlightcolor_location, time_location;
 		GLuint program;
 
 		int textureWidth, textureHeight, textureColorChannels;
@@ -419,18 +399,20 @@ class Material {
 			glAttachShader(program, vertexShader);
 			glAttachShader(program, fragmentShader);
 			glLinkProgram(program);
-
+			
 			mvp_location = glGetUniformLocation(program, "MVP");
 			texture1_location = glGetUniformLocation(program, "texture1");
 			time_location = glGetUniformLocation(program, "time");
 			vpos_location = glGetAttribLocation(program, "vPos");
 			vtexcoord_location = glGetAttribLocation(program, "vTexCoord");
+			vtilehealth_location = glGetAttribLocation(program, "vTileHealth");
+			vlightcolor_location = glGetAttribLocation(program, "vLightColor");
 		}
 };
 int newEntityID = 0;
 class Entity {
 public:
-	Vec2 pos = {20.f, 800.f};
+	Vec2 pos = {20.f, 720.f};
 	Vec2 size = {0.5f, 1.8f};
 	Vec2 vel = {0.f, 0.f};
 	int id = newEntityID++;
@@ -511,6 +493,10 @@ class Particle {
 		material = matial;
 	}
 };
+struct Light {
+	iVec2 pos;
+	unsigned char intensity;
+};
 class World {
 	public:
 	vector<Entity> entities = {{0}};
@@ -520,6 +506,7 @@ class World {
 	const static int worldHeight = 1000;
 	Tile tiles[worldWidth][worldHeight];
 	unsigned char lightmap[worldWidth][worldHeight];
+	unsigned char lightmapCalculated[worldWidth][worldHeight];
 	PerlinGenerator gen;
 	float time = 0.f;
 	float getGeneratorHeight(float x) {
@@ -531,7 +518,7 @@ class World {
 			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
 				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
-				lightmap[x][y] = 255 - (unsigned short)(clamp(x - 30 + y - 700, 0, 255));
+				lightmap[x][y] = 100;
 			}
 		}
 		// tree generation
@@ -561,6 +548,32 @@ class World {
 				}
 			}
 		}
+		recalculateLighting();
+	}
+	void recalculateLighting() {
+		if (entities.size() == 0) return;
+		vector<Light> lights = {{{30, 700}, 255}};
+		for (int x = 0; x < worldWidth; x++) {
+			for (int y = 0; y < worldHeight; y++) {
+				lightmap[x][y] = 127;
+				lightmapCalculated[x][y] = 0;
+			}
+		}
+		for (int i = 0; i < 10; i++) { // floo
+			for (int j = (int)lights.size() - 1; j >= 0; j--) {
+				cout << i << ", " << j << endl;
+				lightmap[lights[j].pos.x][lights[j].pos.y] = lights[j].intensity;
+
+				unsigned char nextIntensity = lights[j].intensity - 5;
+				cout << lightmapCalculated[lights[j].pos.x][lights[j].pos.y + 1] << endl;
+				if (lightmapCalculated[lights[j].pos.x][lights[j].pos.y + 1] == 0) lights.push_back({{lights[j].pos.x, lights[j].pos.y + 1}, nextIntensity});
+				if (lightmapCalculated[lights[j].pos.x + 1][lights[j].pos.y] == 0) lights.push_back({{lights[j].pos.x + 1, lights[j].pos.y}, nextIntensity});
+				if (lightmapCalculated[lights[j].pos.x][lights[j].pos.y - 1] == 0) lights.push_back({{lights[j].pos.x, lights[j].pos.y - 1}, nextIntensity});
+				if (lightmapCalculated[lights[j].pos.x - 1][lights[j].pos.y] == 0) lights.push_back({{lights[j].pos.x - 1, lights[j].pos.y}, nextIntensity});
+				lights.erase(lights.begin() + j);
+				lightmapCalculated[lights[j].pos.x][lights[j].pos.y] = 0;
+			}
+		}
 	}
 	Tile getTile(Vec2 pos) {
 		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return {0};
@@ -587,7 +600,12 @@ class GameState {
 	World world;
 	float dt = 1.f;
 	float x = 0.f;
+	float lightingRecalculateDelay = 0.1f;
 	void tick(int width, int height) {
+		if (lightingRecalculateDelay <= 0.f) {
+			lightingRecalculateDelay += 0.1f;
+			world.recalculateLighting();
+		} else lightingRecalculateDelay -= dt;
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
 		controls.clipMouse.y = (0.5f - controls.mouse.y / (float)height) * 2.f;
@@ -728,6 +746,7 @@ public:
 		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
 		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
 		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
+		{"air"					   , solidV.shader, solidF.shader		  , "resources/texture/air.png"},
 		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"sentry"					  , solidV.shader, solidF.shader		  , "resources/texture/sentry.png"},
@@ -782,37 +801,42 @@ public:
 			for (int y = 0; y < game->world.worldHeight; y++) {
 				if ((float)y + 1.f < cameraBottom) continue;
 				if ((float)y > cameraTop) break;
+				float lightR = ((float)game->world.lightmap[x][y]) / 256.f;
+				float lightG = ((float)game->world.lightmap[x][y]) / 256.f;
+				float lightB = ((float)game->world.lightmap[x][y]) / 256.f;
 				switch (game->world.tiles[x][y].type) {
+					case ttypes::air:
+					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
+					break;
 					case 1:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"));
+					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB);
 					if (game->world.getTile({(float)x, (float)y + 1.f}).type == ttypes::air) {
-						addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"));
+						addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB);
 					} else {
 						if (game->world.getTile({(float)x + 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x + 1.f, (float)y}).type == ttypes::dirt) {
-							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"));
+							addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"), 1.f, lightR, lightG, lightB);
 						}
 						if (game->world.getTile({(float)x - 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x - 1.f, (float)y}).type == ttypes::dirt) {
-							addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"));
+							addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"), 1.f, lightR, lightG, lightB);
 						}
 					}
 					break;
 					case 2:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"));
+					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB);
 					break;
 					case 3:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"));
+					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"), 1.f, lightR, lightG, lightB);
 					break;
 					case 4:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("log"));
+					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("log"), 1.f, lightR, lightG, lightB);
 					break;
 					case 5:
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("leaves"));
+					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("leaves"), 1.f, lightR, lightG, lightB);
 					break;
 				}
 				if (game->world.tiles[x][y].health < game->world.tiles[x][y].maxHealth) {
 					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.tiles[x][y].maxHealth - game->world.tiles[x][y].health) / game->world.tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
 				}
-				addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("light_map"), (float)game->world.lightmap[x][y] / 256.f, 0.f, 1.f / 256.f, 1.f);
 			}
 		}
 		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"));
@@ -847,6 +871,13 @@ public:
 	
 		glEnableVertexAttribArray(materials[id].vtexcoord_location);
 		glVertexAttribPointer(materials[id].vtexcoord_location, 2, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 3));
+	
+		glEnableVertexAttribArray(materials[id].vtilehealth_location);
+		glVertexAttribPointer(materials[id].vtilehealth_location, 1, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 5));
+	
+		glEnableVertexAttribArray(materials[id].vlightcolor_location);
+		glVertexAttribPointer(materials[id].vlightcolor_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 6));
+
 		float ratio = (float)width / (float)height;
 		mat4x4 m, p, mvp;
 
@@ -890,10 +921,10 @@ private:
 			1U+end, 3U+end, 2U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y , z+d, 0.f, 0.f},
-			{x+w, y , z+d, worldUv ? w : 1.f, 0.f},
-			{x  , y , z  , 0.f, worldUv ? d : 1.f},
-			{x+w, y , z  , worldUv ? w : 1.f, worldUv ? d : 1.f}
+			{x  , y , z+d, 0.f              , 0.f              , 1.f, 1.f, 1.f, 1.f},
+			{x+w, y , z+d, worldUv ? w : 1.f, 0.f              , 1.f, 1.f, 1.f, 1.f},
+			{x  , y , z  , 0.f              , worldUv ? d : 1.f, 1.f, 1.f, 1.f, 1.f},
+			{x+w, y , z  , worldUv ? w : 1.f, worldUv ? d : 1.f, 1.f, 1.f, 1.f, 1.f}
 		});
 	}
 	void addQuad(Vec2 p1, Vec2 p2, Vec2 p3, Vec2 p4, int matId) { // clockwise
@@ -903,10 +934,10 @@ private:
 			0U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{p1.x, p1.y, 0.f, 0.f, 0.f},
-			{p2.x, p2.y, 0.f, 1.f, 0.f},
-			{p3.x, p3.y, 0.f, 0.f, 1.f},
-			{p4.x, p4.y, 0.f, 1.f, 1.f}
+			{p1.x, p1.y, 0.f, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f},
+			{p2.x, p2.y, 0.f, 1.f, 0.f, 1.f, 1.f, 1.f, 1.f},
+			{p3.x, p3.y, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f},
+			{p4.x, p4.y, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f}
 		});
 	}
 
@@ -922,10 +953,24 @@ private:
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+h, z, u    , v    },
-			{x+w, y+h, z, u + s, v    },
-			{x  , y  , z, u    , v + t},
-			{x+w, y  , z, u + s, v + t}
+			{x  , y+h, z, u    , v    , 1.f, 1.f, 1.f, 1.f},
+			{x+w, y+h, z, u + s, v    , 1.f, 1.f, 1.f, 1.f},
+			{x  , y  , z, u    , v + t, 1.f, 1.f, 1.f, 1.f},
+			{x+w, y  , z, u + s, v + t, 1.f, 1.f, 1.f, 1.f}
+		});
+	}
+	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB) {
+		if (x + w < cameraLeft || x > cameraRight || y + h < cameraBottom || y > cameraTop) return;
+		unsigned int end = vertices.size();
+		indiceses[matId].insert(indiceses[matId].end(), {
+			0U+end, 2U+end, 1U+end,
+			1U+end, 2U+end, 3U+end
+		});
+		vertices.insert(vertices.end(), {
+			{x  , y+h, z, 0.f, 0.f, tileHealth, lightR, lightG, lightB},
+			{x+w, y+h, z, 1.f, 0.f, tileHealth, lightR, lightG, lightB},
+			{x  , y  , z, 0.f, 1.f, tileHealth, lightR, lightG, lightB},
+			{x+w, y  , z, 1.f, 1.f, tileHealth, lightR, lightG, lightB}
 		});
 	}
 	void addCharacter(char character, float x, float y, float z, float w) {
@@ -936,10 +981,10 @@ private:
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+w*aspect, z, 0.f+uv.x, 0.f+uv.y},
-			{x+w, y+w*aspect, z, 1.f+uv.x, 0.f+uv.y},
-			{x  , y         , z, 0.f+uv.x, 1.f+uv.y},
-			{x+w, y         , z, 1.f+uv.x, 1.f+uv.y}
+			{x  , y+w*aspect, z, 0.f+uv.x, 0.f+uv.y, 1.f, 1.f, 1.f, 1.f},
+			{x+w, y+w*aspect, z, 1.f+uv.x, 0.f+uv.y, 1.f, 1.f, 1.f, 1.f},
+			{x  , y         , z, 0.f+uv.x, 1.f+uv.y, 1.f, 1.f, 1.f, 1.f},
+			{x+w, y         , z, 1.f+uv.x, 1.f+uv.y, 1.f, 1.f, 1.f, 1.f}
 		});
 	}
 	void addText(string text, float x, float y, float z, float w, float spacing, float maxWidth, bool centered) {

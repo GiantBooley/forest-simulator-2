@@ -4,6 +4,7 @@ uniform mat4 MVP;
 
 in vec2 vTexCoord;
 in vec3 vPos;
+in vec3 vLightColor;
 
 out vec2 texCoord;
 out vec3 pos;

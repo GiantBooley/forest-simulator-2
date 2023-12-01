@@ -4,9 +4,13 @@ uniform mat4 MVP;
 
 in vec2 vTexCoord;
 in vec3 vPos;
+in float vTileHealth;
+in vec3 vLightColor;
 
 out vec2 texCoord;
 out vec3 pos;
+out float tileHealth;
+out vec3 lightColor;
 
 void main() {
 	vec3 newPos = vPos;
@@ -15,4 +19,6 @@ void main() {
 	gl_Position = position;
 	texCoord = vTexCoord;
 	pos = vPos;
+	tileHealth = vTileHealth;
+	lightColor = vLightColor;
 }
