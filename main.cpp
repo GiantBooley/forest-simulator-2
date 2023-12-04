@@ -410,6 +410,23 @@ class Material {
 		}
 };
 int newEntityID = 0;
+class Item {
+	public:
+	int type;
+	float durability;
+	float damage;
+
+	float attackDelay;
+
+	Item(int typea) {
+		type = typea;
+		switch (type) {
+			case 0:
+			durability = 600.f;
+			damage = 3.f;
+		}
+	}
+};
 class Entity {
 public:
 	Vec2 pos = {20.f, 720.f};
@@ -706,11 +723,11 @@ class GameState {
 			if (collision.collided) {
 				e->pos.x -= e->vel.x * dt;
 				if (e->vel.x > 0.f) {
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(dt);
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(dt);
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(.3f * dt);
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(.3f * dt);
 				} else {
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(dt);
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(dt);
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(.3f * dt);
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(.3f * dt);
 				}
 				e->vel.x = 0.f;
 			}
@@ -720,6 +737,11 @@ class GameState {
 			if (collision.collided) {
 				e->pos.y -= e->vel.y * dt;
 				e->onGround = e->vel.y < 0.f;
+				if (e->vel.y > 0.f) {
+					world.tiles[(int)e->pos.x][(int)e->pos.y + 2].damage(.3f * dt);
+				} else {
+					world.tiles[(int)e->pos.x][(int)e->pos.y - 1].damage(.3f * dt);
+				}
 				e->vel.y = 0.f;
 				if (controlsUp && e->onGround) {
 					e->vel.y = 6.f;
@@ -788,6 +810,7 @@ public:
 		{"light_map"					   , solidV.shader, solidF.shader		  , "resources/texture/light_map.png"},
 		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
+		{"sword"					   , solidV.shader, solidF.shader		  , "resources/texture/sword.png"},
 
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
