@@ -462,6 +462,13 @@ class Tile {
 	Tile() {
 		Tile((int)ttypes::air);
 	}
+	void damage(float amount) {
+		health -= amount;
+		if (health <= 0.f) {
+			type = ttypes::air;
+			health = 43289.f;
+		}
+	}
 };
 class PerlinGenerator {
 	public:
@@ -506,7 +513,7 @@ class World {
 	const static int worldHeight = 1000;
 	Tile tiles[worldWidth][worldHeight];
 	unsigned char lightmap[worldWidth][worldHeight];
-	unsigned char lightmapCalculated[worldWidth][worldHeight];
+	int lightmapCalculated[worldWidth][worldHeight];
 	PerlinGenerator gen;
 	float time = 0.f;
 	float getGeneratorHeight(float x) {
@@ -548,36 +555,49 @@ class World {
 				}
 			}
 		}
-		recalculateLighting();
 	}
-	void recalculateLighting() {
-		if (entities.size() == 0) return;
-		vector<Light> lights = {{{30, 700}, 255}};
-		for (int x = 0; x < worldWidth; x++) {
-			for (int y = 0; y < worldHeight; y++) {
-				lightmap[x][y] = 127;
-				lightmapCalculated[x][y] = 0;
-			}
-		}
-		for (int i = 0; i < 10; i++) { // floo
-			for (int j = (int)lights.size() - 1; j >= 0; j--) {
-				cout << i << ", " << j << endl;
-				lightmap[lights[j].pos.x][lights[j].pos.y] = lights[j].intensity;
+	void recalculateLighting(vector<Light> lights, float left, float right) {
 
-				unsigned char nextIntensity = lights[j].intensity - 5;
-				cout << lightmapCalculated[lights[j].pos.x][lights[j].pos.y + 1] << endl;
-				if (lightmapCalculated[lights[j].pos.x][lights[j].pos.y + 1] == 0) lights.push_back({{lights[j].pos.x, lights[j].pos.y + 1}, nextIntensity});
-				if (lightmapCalculated[lights[j].pos.x + 1][lights[j].pos.y] == 0) lights.push_back({{lights[j].pos.x + 1, lights[j].pos.y}, nextIntensity});
-				if (lightmapCalculated[lights[j].pos.x][lights[j].pos.y - 1] == 0) lights.push_back({{lights[j].pos.x, lights[j].pos.y - 1}, nextIntensity});
-				if (lightmapCalculated[lights[j].pos.x - 1][lights[j].pos.y] == 0) lights.push_back({{lights[j].pos.x - 1, lights[j].pos.y}, nextIntensity});
+		memset(&lightmap, 0x00, sizeof(lightmap));
+		memset(&lightmapCalculated, 0x00, sizeof(lightmapCalculated));
+		
+		for (int i = 0; i < 10; i++) { // flood
+			for (int j = (int)lights.size() - 1; j >= 0; j--) {
+				int x = lights[j].pos.x;
+				int y = lights[j].pos.y;
+
+				lightmap[x][y] = lights[j].intensity;
+				lightmapCalculated[x][y] = 1;
+
+				unsigned char nextIntensity = lights[j].intensity - 25;
 				lights.erase(lights.begin() + j);
-				lightmapCalculated[lights[j].pos.x][lights[j].pos.y] = 0;
+				if (getTileI({x, y}).type != ttypes::air) continue;
+				if (x > (int)left && x < (int)right && lightmapCalculated[x][y + 1] == 0) {
+					lights.push_back({{x, y + 1}, nextIntensity});
+					lightmapCalculated[x][y + 1] = 1;
+				};
+				if (x > (int)left && x < (int)right && lightmapCalculated[x + 1][y] == 0) {
+					lights.push_back({{x + 1, y}, nextIntensity});
+					lightmapCalculated[x + 1][y] = 1;
+				}
+				if (x > (int)left && x < (int)right && lightmapCalculated[x][y - 1] == 0) {
+					lights.push_back({{x, y - 1}, nextIntensity});
+					lightmapCalculated[x][y - 1] = 1;
+				}
+				if (x > (int)left && x < (int)right && lightmapCalculated[x - 1][y] == 0) {
+					lights.push_back({{x - 1, y}, nextIntensity});
+					lightmapCalculated[x - 1][y] = 1;
+				}
 			}
 		}
 	}
 	Tile getTile(Vec2 pos) {
 		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return {0};
 		return tiles[(int)pos.x][(int)pos.y];
+	}
+	Tile getTileI(iVec2 pos) {
+		if (pos.x < 0 || pos.y < 0 || pos.x >= worldWidth || pos.y >= worldHeight) return {0};
+		return tiles[pos.x][pos.y];
 	}
 	bool areTwoEntitiesCollidingWithEachother(Entity* e1, Entity* e2) {
 		if (e1->id == e2->id) return false;
@@ -600,25 +620,33 @@ class GameState {
 	World world;
 	float dt = 1.f;
 	float x = 0.f;
-	float lightingRecalculateDelay = 0.1f;
+	float lightingRecalculateDelay = 0.2f;
 	void tick(int width, int height) {
-		if (lightingRecalculateDelay <= 0.f) {
-			lightingRecalculateDelay += 0.1f;
-			world.recalculateLighting();
-		} else lightingRecalculateDelay -= dt;
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
 		controls.clipMouse.y = (0.5f - controls.mouse.y / (float)height) * 2.f;
 		controls.worldMouse.x = controls.clipMouse.x * (world.camera.zoom * (float)width / (float)height) + world.camera.pos.x;
 		controls.worldMouse.y = controls.clipMouse.y * world.camera.zoom + world.camera.pos.y;
+		float cameraLeft = world.camera.pos.x - 2.f * world.camera.zoom;
+		float cameraRight = world.camera.pos.x + 2.f * world.camera.zoom;
+		float cameraBottom = world.camera.pos.y - 2.f * world.camera.zoom / ((float)width / (float)height);
+		float cameraTop = world.camera.pos.y + 2.f * world.camera.zoom / ((float)width / (float)height);
+		if (lightingRecalculateDelay <= 0.f) {
+			lightingRecalculateDelay += 0.2f;
+			vector<Light> lights = {};
+			for (int x = (int)cameraLeft; x < (int)cameraRight; x++) {
+				for (int y = (int)cameraTop; y >= (int)cameraBottom && world.tiles[x][y].type == ttypes::air; y--) {
+					lights.push_back({{x, y}, 255});
+				}
+			}
+			world.recalculateLighting(lights, cameraLeft, cameraRight);
+		} else lightingRecalculateDelay -= dt;
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
 
 		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
-			world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].health -= 1.f * dt;
-			if (world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].health <= 0.f) 
-				world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::air};
+			world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].damage(dt);
 		}
 
 		if (controls.space) {
@@ -677,6 +705,13 @@ class GameState {
 			EntityCollision collision = world.getEntityCollision(e);
 			if (collision.collided) {
 				e->pos.x -= e->vel.x * dt;
+				if (e->vel.x > 0.f) {
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(dt);
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(dt);
+				} else {
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(dt);
+					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(dt);
+				}
 				e->vel.x = 0.f;
 			}
 			e->pos.y += e->vel.y * dt;
