@@ -19,6 +19,8 @@
 #include <sstream>
 #include <filesystem>
 
+#define PI 3.1415926535897932384626433832795028841971693993751058
+
 using namespace std;
 
 bool debug = false;
@@ -415,8 +417,12 @@ class Item {
 	int type;
 	float durability;
 	float damage;
+	string material;
+	Vec2 size;
 
 	float attackDelay;
+	float swingRotation = 0.f;
+	float isSwinging = false;
 
 	Item(int typea) {
 		type = typea;
@@ -424,6 +430,8 @@ class Item {
 			case 0:
 			durability = 600.f;
 			damage = 3.f;
+			material = "sword";
+			size = {0.3f, 1.f};
 		}
 	}
 };
@@ -440,6 +448,9 @@ public:
 	float health;
 	float maxHealth;
 	float speed = 1.6f;
+	Item hand{0};
+	iVec2 facingVector = {0, 0};
+	
 	Entity(int typea) {
 		type = typea;
 		material = type == 0 ? "player" : "sentry";
@@ -478,13 +489,6 @@ class Tile {
 	}
 	Tile() {
 		Tile((int)ttypes::air);
-	}
-	void damage(float amount) {
-		health -= amount;
-		if (health <= 0.f) {
-			type = ttypes::air;
-			health = 43289.f;
-		}
 	}
 };
 class PerlinGenerator {
@@ -534,10 +538,15 @@ class World {
 	PerlinGenerator gen;
 	float time = 0.f;
 	float getGeneratorHeight(float x) {
-		return gen.getVal(x * 0.1f) * 10.f + 700.f;
+		float height = 0.f;
+		for (int i = 0; i < 7; i++) {
+			float it = powf(2.f, (float)i);
+			height += gen.getVal(x * 0.1f * it) / it * 10.f;
+		}
+		return height + 700.f;
 	}
 	World() {
-		// level generation generate generator generating generated generates generatings
+		// level generation generate generator generating generated generates generatings generations generational generationality generationalities
 		for (int x = 0; x < worldWidth; x++) {
 			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
@@ -588,7 +597,7 @@ class World {
 
 				unsigned char nextIntensity = lights[j].intensity - 25;
 				lights.erase(lights.begin() + j);
-				if (getTileI({x, y}).type != ttypes::air) continue;
+				if (getTile(x, y).type != ttypes::air) continue;
 				if (x > (int)left && x < (int)right && lightmapCalculated[x][y + 1] == 0) {
 					lights.push_back({{x, y + 1}, nextIntensity});
 					lightmapCalculated[x][y + 1] = 1;
@@ -608,25 +617,50 @@ class World {
 			}
 		}
 	}
-	Tile getTile(Vec2 pos) {
-		if (pos.x < 0.f || pos.y < 0.f || pos.x >= worldWidth || pos.y >= worldHeight) return {0};
-		return tiles[(int)pos.x][(int)pos.y];
+	Tile getTile(int x, int y) {
+		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return {0};
+		return tiles[x][y];
 	}
-	Tile getTileI(iVec2 pos) {
-		if (pos.x < 0 || pos.y < 0 || pos.x >= worldWidth || pos.y >= worldHeight) return {0};
-		return tiles[pos.x][pos.y];
+	void setTile(int x, int y, Tile t) {
+		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return;
+		tiles[x][y] = t;
+	}
+	void damageTile(int x, int y, float amount) {
+		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return;
+		tiles[x][y].health -= amount;
+		if (tiles[x][y].health <= 0.f) {
+			tiles[x][y].type = ttypes::air;
+			tiles[x][y].health = 43289.f;
+		}
 	}
 	bool areTwoEntitiesCollidingWithEachother(Entity* e1, Entity* e2) {
 		if (e1->id == e2->id) return false;
 		return e1->pos.x + e1->size.x / 2.f > e2->pos.x - e2->size.x / 2.f && e1->pos.x - e1->size.x / 2.f < e2->pos.x + e2->size.x / 2.f && e1->pos.y + e1->size.y > e2->pos.y && e1->pos.y < e2->pos.y + e2->size.y;
 	}
 	EntityCollision getEntityCollision(Entity* e) {
-		if (getTile({e->pos.x - e->size.x / 2.f, e->pos.y}).type != ttypes::air || getTile({e->pos.x + e->size.x / 2.f, e->pos.y}).type != ttypes::air || getTile({e->pos.x - e->size.x / 2.f, e->pos.y + e->size.y}).type != ttypes::air || getTile({e->pos.x + e->size.x / 2.f, e->pos.y + e->size.y}).type != ttypes::air) return {true, false, e, nullptr};
+		if (getTile((int)(e->pos.x - e->size.x / 2.f), (int)e->pos.y).type != ttypes::air || getTile((int)(e->pos.x + e->size.x / 2.f), (int)e->pos.y).type != ttypes::air || getTile((int)(e->pos.x - e->size.x / 2.f), (int)(e->pos.y + e->size.y)).type != ttypes::air || getTile((int)(e->pos.x + e->size.x / 2.f), (int)(e->pos.y + e->size.y)).type != ttypes::air) return {true, false, e, nullptr};
 		for (int i = 0; i < (int)entities.size(); i++) {
 			if (entities[i].id == e->id) continue;
 			if (areTwoEntitiesCollidingWithEachother(e, &entities[i])) return {true, true, e, &entities[1]};
 		}
 		return {false, false, e, nullptr};
+	}
+	void makeEntityPunch(Entity* e) {
+		e->hand.swingRotation = 0.f;
+		e->hand.isSwinging = true;
+		if (e->facingVector.x != -1) {
+			if (getTile((int)e->pos.x + 1, (int)e->pos.y + 1).type != ttypes::air) {
+				damageTile((int)e->pos.x + 1, (int)e->pos.y + 1, 0.2f);
+			} else {
+				damageTile((int)e->pos.x + 1, (int)e->pos.y, 0.2f);
+			}
+		} else {
+			if (getTile((int)e->pos.x - 1, (int)e->pos.y + 1).type != ttypes::air) {
+				damageTile((int)e->pos.x - 1, (int)e->pos.y + 1, 0.2f);
+			} else {
+				damageTile((int)e->pos.x - 1, (int)e->pos.y, 0.2f);
+			}
+		}
 	}
 };
 float lerpd(float a, float b, float t, float d) {
@@ -663,7 +697,7 @@ class GameState {
 
 
 		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
-			world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y].damage(dt);
+			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
 		}
 
 		if (controls.space) {
@@ -710,11 +744,22 @@ class GameState {
 					controlsRight = (world.entities[playerIs[nearestPlayerI]].pos.x > e->pos.x);
 				}
 			}
+			if (e->hand.isSwinging) {
+				e->hand.swingRotation += 5.f * dt;
+				if (e->hand.swingRotation > PI) {
+					e->hand.swingRotation = 0.f;
+					e->hand.isSwinging = false;
+				}
+			};
 
 			float friction = e->onGround ? 0.9f : 0.01f;
 			
 			e->vel.y += gravity * dt;
 			float netMovement = controlsRight - controlsLeft;
+			if (netMovement != 0.f) {
+				e->facingVector = {(int)netMovement, 0};
+			}
+			
 			e->vel.x = lerpd(e->vel.x, netMovement * (controls.shift ? 6.f : e->speed), friction, dt);
 			e->pos.x += e->vel.x * dt;
 
@@ -722,13 +767,6 @@ class GameState {
 			EntityCollision collision = world.getEntityCollision(e);
 			if (collision.collided) {
 				e->pos.x -= e->vel.x * dt;
-				if (e->vel.x > 0.f) {
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(.3f * dt);
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(.3f * dt);
-				} else {
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y].damage(.3f * dt);
-					world.tiles[(int)e->pos.x + 1][(int)e->pos.y + 1].damage(.3f * dt);
-				}
 				e->vel.x = 0.f;
 			}
 			e->pos.y += e->vel.y * dt;
@@ -737,11 +775,6 @@ class GameState {
 			if (collision.collided) {
 				e->pos.y -= e->vel.y * dt;
 				e->onGround = e->vel.y < 0.f;
-				if (e->vel.y > 0.f) {
-					world.tiles[(int)e->pos.x][(int)e->pos.y + 2].damage(.3f * dt);
-				} else {
-					world.tiles[(int)e->pos.x][(int)e->pos.y - 1].damage(.3f * dt);
-				}
 				e->vel.y = 0.f;
 				if (controlsUp && e->onGround) {
 					e->vel.y = 6.f;
@@ -868,13 +901,13 @@ public:
 					break;
 					case 1:
 					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB);
-					if (game->world.getTile({(float)x, (float)y + 1.f}).type == ttypes::air) {
+					if (game->world.getTile(x, y + 1).type == ttypes::air) {
 						addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB);
 					} else {
-						if (game->world.getTile({(float)x + 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x + 1.f, (float)y}).type == ttypes::dirt) {
+						if (game->world.getTile(x + 1, y + 1).type == ttypes::air && game->world.getTile(x + 1, y).type == ttypes::dirt) {
 							addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"), 1.f, lightR, lightG, lightB);
 						}
-						if (game->world.getTile({(float)x - 1.f, (float)y + 1.f}).type == ttypes::air && game->world.getTile({(float)x - 1.f, (float)y}).type == ttypes::dirt) {
+						if (game->world.getTile(x - 1, y + 1).type == ttypes::air && game->world.getTile(x - 1, y).type == ttypes::dirt) {
 							addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"), 1.f, lightR, lightG, lightB);
 						}
 					}
@@ -899,7 +932,10 @@ public:
 		}
 		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"));
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
-			addRect(game->world.entities[i].pos.x - game->world.entities[i].size.x / 2.f, game->world.entities[i].pos.y, 0.f, game->world.entities[i].size.x, game->world.entities[i].size.y, getMatID(game->world.entities[i].material));
+			Entity* e = &game->world.entities[i];
+			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material));
+			float handX = (game->world.entities[i].facingVector.x == -1) ? (e->pos.x - e->size.x / 2.f - 0.2f) : (e->pos.x + e->size.x / 2.f + 0.1f);
+			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.f, e->hand.size.x, e->hand.size.y, getMatID(e->hand.material), e->hand.swingRotation * (signbit(e->facingVector.x) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
 			addRect(game->world.particles[i].pos.x - 0.5f, game->world.particles[i].pos.y - 0.5f, 0.f, 1.f, 1.f, getMatID(game->world.particles[i].material));
@@ -1031,6 +1067,32 @@ private:
 			{x+w, y  , z, 1.f, 1.f, tileHealth, lightR, lightG, lightB}
 		});
 	}
+	void addRotatedRect(float x, float y, float z, float w, float h, int matId, float theta, float originX, float originY) {
+		if (x + w < cameraLeft || x > cameraRight || y + h < cameraBottom || y > cameraTop) return;
+		unsigned int end = vertices.size();
+		indiceses[matId].insert(indiceses[matId].end(), {
+			0U+end, 2U+end, 1U+end,
+			1U+end, 2U+end, 3U+end
+		});
+		theta *= -1;
+		Vec2 rectVerts[4] = {{x, y + h}, {x + w, y + h}, {x, y}, {x + w, y}};
+		for (int i = 0; i < 4; i++) {
+			rectVerts[i].x -= originX;
+			rectVerts[i].y -= originY;
+			float px = rectVerts[i].x;
+			float py = rectVerts[i].y;
+			rectVerts[i].x = px * cos(theta) - py * sin(theta);
+			rectVerts[i].y = py * cos(theta) + px * sin(theta);
+			rectVerts[i].x += originX;
+			rectVerts[i].y += originY;
+		}
+		vertices.insert(vertices.end(), {
+			{rectVerts[0].x, rectVerts[0].y, z, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f},
+			{rectVerts[1].x, rectVerts[1].y, z, 1.f, 0.f, 1.f, 1.f, 1.f, 1.f},
+			{rectVerts[2].x, rectVerts[2].y, z, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f},
+			{rectVerts[3].x, rectVerts[3].y, z, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f}
+		});
+	};
 	void addCharacter(char character, float x, float y, float z, float w) {
 		Vec2 uv = getCharacterCoords(character);
 		unsigned int end = vertices.size();
@@ -1070,7 +1132,8 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_DOWN) game.world.camera.zoom++;
 		else if (key == GLFW_KEY_SPACE) {
 			controls.space = true;
-		};
+		}
+		else if (key == GLFW_KEY_X) game.world.makeEntityPunch(&game.world.entities[0]);
 	}
 	else if (action == GLFW_RELEASE) {
 		if (key == GLFW_KEY_W) controls.w = false;
@@ -1079,7 +1142,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_D) controls.d = false;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = false;
 		else if (key == GLFW_KEY_SPACE) controls.space = false;
-	};
+	}
 }
 bool mouseIntersectsClipRect(float x, float y, float w, float h) {
 	return controls.clipMouse.x > x && controls.clipMouse.x < x + w && controls.clipMouse.y > y && controls.clipMouse.y < y + h;
@@ -1098,10 +1161,10 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		controls.mouseDown = false;
 	}
 	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-	   double xpos, ypos;
-	   //getting cursor position
-	   glfwGetCursorPos(window, &xpos, &ypos);
-	   if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
+		double xpos, ypos;
+		//getting cursor position
+		glfwGetCursorPos(window, &xpos, &ypos);
+		if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
 			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::wood};
 		}
 	}
