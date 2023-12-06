@@ -16,6 +16,5 @@ float lerp(float a, float b, float t) {
 void main() {
 	vec4 color = texture2D(texture1, texCoord);
 	color.rgb *= lightColor;
-	color.a = lerp(color.a, 1.0, 1.0 - max(lightColor.b, max(lightColor.r, lightColor.g)));
 	FragColor = color;
 }

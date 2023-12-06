@@ -455,7 +455,7 @@ public:
 		type = typea;
 		material = type == 0 ? "player" : "sentry";
 		controlsType = type == 0 ? 0 : 1;
-		health = type == 0 ? 10123123123.f : 912.f;
+		health = type == 0 ? 10123123123.f : 20.f;
 		maxHealth = health;
 	}
 };
@@ -521,10 +521,17 @@ class Particle {
 		material = matial;
 	}
 };
+struct sVec3 {
+	short int r, g, b;
+};
 struct Light {
 	iVec2 pos;
-	unsigned char intensity;
+	sVec3 intensity;
 };
+struct Photon {
+	float x, y, xv, yv, r, g, b;
+};
+int width, height;
 class World {
 	public:
 	vector<Entity> entities = {{0}};
@@ -532,9 +539,12 @@ class World {
 	Camera camera;
 	const static int worldWidth = 5000;
 	const static int worldHeight = 1000;
+
+	// lighting vars
 	Tile tiles[worldWidth][worldHeight];
-	unsigned char lightmap[worldWidth][worldHeight];
-	int lightmapCalculated[worldWidth][worldHeight];
+	sVec3 lightmap[worldWidth][worldHeight];
+	vector<Photon> photons = {};
+
 	PerlinGenerator gen;
 	float time = 0.f;
 	float getGeneratorHeight(float x) {
@@ -551,9 +561,9 @@ class World {
 			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
 				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
-				lightmap[x][y] = 100;
 			}
 		}
+		memset(&lightmap, 0x7f, sizeof(lightmap));
 		// tree generation
 		for (int x = 2; x < worldWidth - 2; x++) {
 			for (int y = worldHeight - 1 - 10; y >= 1; y--) {
@@ -582,38 +592,13 @@ class World {
 			}
 		}
 	}
-	void recalculateLighting(vector<Light> lights, float left, float right) {
-
-		memset(&lightmap, 0x00, sizeof(lightmap));
-		memset(&lightmapCalculated, 0x00, sizeof(lightmapCalculated));
+	void lightingStep(vector<Light> lights, float left, float right) {
 		
-		for (int i = 0; i < 10; i++) { // flood
-			for (int j = (int)lights.size() - 1; j >= 0; j--) {
-				int x = lights[j].pos.x;
-				int y = lights[j].pos.y;
-
-				lightmap[x][y] = lights[j].intensity;
-				lightmapCalculated[x][y] = 1;
-
-				unsigned char nextIntensity = lights[j].intensity - 25;
-				lights.erase(lights.begin() + j);
-				if (getTile(x, y).type != ttypes::air) continue;
-				if (x > (int)left && x < (int)right && lightmapCalculated[x][y + 1] == 0) {
-					lights.push_back({{x, y + 1}, nextIntensity});
-					lightmapCalculated[x][y + 1] = 1;
-				};
-				if (x > (int)left && x < (int)right && lightmapCalculated[x + 1][y] == 0) {
-					lights.push_back({{x + 1, y}, nextIntensity});
-					lightmapCalculated[x + 1][y] = 1;
-				}
-				if (x > (int)left && x < (int)right && lightmapCalculated[x][y - 1] == 0) {
-					lights.push_back({{x, y - 1}, nextIntensity});
-					lightmapCalculated[x][y - 1] = 1;
-				}
-				if (x > (int)left && x < (int)right && lightmapCalculated[x - 1][y] == 0) {
-					lights.push_back({{x - 1, y}, nextIntensity});
-					lightmapCalculated[x - 1][y] = 1;
-				}
+		for (int i = 0; i < 500; i++) { // rt steps
+			for (int j = 0; j < (int)photons.size(); j++) {
+				photons[j].x += photons[j].xv;
+				//asdasdadsif (getTile((int)photons[j].x))
+				photons[j].y += photons[j].yv;
 			}
 		}
 	}
@@ -671,30 +656,22 @@ class GameState {
 	World world;
 	float dt = 1.f;
 	float x = 0.f;
-	float lightingRecalculateDelay = 0.2f;
-	void tick(int width, int height) {
+	float lightingRecalculateDelay = 0.25f;
+	float playing = true;
+	void tick() {
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
 		controls.clipMouse.y = (0.5f - controls.mouse.y / (float)height) * 2.f;
 		controls.worldMouse.x = controls.clipMouse.x * (world.camera.zoom * (float)width / (float)height) + world.camera.pos.x;
 		controls.worldMouse.y = controls.clipMouse.y * world.camera.zoom + world.camera.pos.y;
-		float cameraLeft = world.camera.pos.x - 2.f * world.camera.zoom;
-		float cameraRight = world.camera.pos.x + 2.f * world.camera.zoom;
-		float cameraBottom = world.camera.pos.y - 2.f * world.camera.zoom / ((float)width / (float)height);
-		float cameraTop = world.camera.pos.y + 2.f * world.camera.zoom / ((float)width / (float)height);
-		if (lightingRecalculateDelay <= 0.f) {
-			lightingRecalculateDelay += 0.2f;
-			vector<Light> lights = {};
-			for (int x = (int)cameraLeft; x < (int)cameraRight; x++) {
-				for (int y = (int)cameraTop; y >= (int)cameraBottom && world.tiles[x][y].type == ttypes::air; y--) {
-					lights.push_back({{x, y}, 255});
-				}
-			}
-			world.recalculateLighting(lights, cameraLeft, cameraRight);
-		} else lightingRecalculateDelay -= dt;
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
+		lightingRecalculateDelay -= dt;
+		if (lightingRecalculateDelay <= 0.f) {
+			lightingRecalculateDelay += 0.5f;
+			//asdasdasdworld.recalculateLightingWithLights();
+		}
 
 		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
 			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
@@ -712,15 +689,17 @@ class GameState {
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			Entity* e = &world.entities[i];
-			/*if (randFloat() < 0.0005f) {
-				Entity recentlydeveloped = {e->type};
-				if (!world.getEntityCollision(&recentlydeveloped).collided) {
-					recentlydeveloped.pos.y = e->pos.y + e->size.y;
-					recentlydeveloped.pos.x = e->pos.x;
-					recentlydeveloped.speed += 0.3f * (randFloat() - 0.5f);
-					world.entities.push_back(recentlydeveloped);
+
+			if (randFloat() < 0.0002f && e->type != 0) {
+				Entity latest = {e->type};
+				if (!world.getEntityCollision(&latest).collided) {
+					latest.pos.y = e->pos.y + e->size.y;
+					latest.pos.x = e->pos.x;
+					latest.speed += 0.3f * (randFloat() - 0.5f);
+					world.entities.push_back(latest);
 				}
-			}*/
+			}
+
 			bool controlsLeft = false;
 			bool controlsRight = false;
 			bool controlsUp = false;
@@ -780,7 +759,7 @@ class GameState {
 					e->vel.y = 6.f;
 				}
 			}
-			if (e->type == 1 || true) e->health -= 1.f * dt;
+			if (e->type == 1) e->health -= 1.f * dt;
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			if (world.entities[i].health <= 0.f) {
@@ -878,7 +857,7 @@ public:
 		glGenBuffers(1, &elementBuffer);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBuffer);
 	}
-	void buildThem(int width, int height) {
+	void buildThem() {
 		aspect = (float)width / (float)height;
 		clearVertices();
 		cameraLeft = game->world.camera.pos.x - 2.f * game->world.camera.zoom;
@@ -892,9 +871,9 @@ public:
 			for (int y = 0; y < game->world.worldHeight; y++) {
 				if ((float)y + 1.f < cameraBottom) continue;
 				if ((float)y > cameraTop) break;
-				float lightR = ((float)game->world.lightmap[x][y]) / 256.f;
-				float lightG = ((float)game->world.lightmap[x][y]) / 256.f;
-				float lightB = ((float)game->world.lightmap[x][y]) / 256.f;
+				float lightR = ((float)game->world.lightmap[x][y].r) / 255.f;
+				float lightG = ((float)game->world.lightmap[x][y].g) / 255.f;
+				float lightB = ((float)game->world.lightmap[x][y].b) / 255.f;
 				switch (game->world.tiles[x][y].type) {
 					case ttypes::air:
 					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
@@ -947,17 +926,17 @@ public:
 		}
 		addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 	}
-	void renderMaterials(int width, int height) {
+	void renderMaterials() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glViewport(0, 0, width, height);
-		buildThem(width, height);
+		buildThem();
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertices[0]), &vertices[0], GL_STATIC_DRAW);
 		for (int i = 0; i < (int)materials.size(); i++) {
-			if ((int)indiceses[i].size() > 0) renderMaterial(i, width, height);
+			if ((int)indiceses[i].size() > 0) renderMaterial(i);
 		}
 
 	}
-	void renderMaterial(int id, int width, int height) {
+	void renderMaterial(int id) {
 
 
 		glEnableVertexAttribArray(materials[id].vpos_location);
@@ -1121,12 +1100,16 @@ GameState game;
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	if (action == GLFW_PRESS) {
 		if (key == GLFW_KEY_ESCAPE) {
+			game.playing = !game.playing;
+		} else
+		if (key == GLFW_KEY_Q) {
 			glfwSetWindowShouldClose(window, GLFW_TRUE);
 		}
 		else if (key == GLFW_KEY_W) controls.w = true;
 		else if (key == GLFW_KEY_A) controls.a = true;
 		else if (key == GLFW_KEY_S) controls.s = true;
 		else if (key == GLFW_KEY_D) controls.d = true;
+		else if (key == GLFW_KEY_F) game.world.entities[0].vel.y += 20.f;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
 		else if (key == GLFW_KEY_UP) game.world.camera.zoom--;
 		else if (key == GLFW_KEY_DOWN) game.world.camera.zoom++;
@@ -1164,9 +1147,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		double xpos, ypos;
 		//getting cursor position
 		glfwGetCursorPos(window, &xpos, &ypos);
-		if (controls.worldMouse.x > 0.f && controls.worldMouse.x < game.world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < game.world.worldHeight) {
-			game.world.tiles[(int)controls.worldMouse.x][(int)controls.worldMouse.y] = {ttypes::wood};
-		}
+		game.world.setTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, {ttypes::wood});
 	}
 }
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
@@ -1218,30 +1199,30 @@ int main(void) {
 	
 	GameStateRenderer renderer{&game};
 	while (!glfwWindowShouldClose(window)) {
-		long long newFrameTime = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch())).count();
-		frameTime = (float)(newFrameTime - lastFrameTime) / 1000.f;
-		lastFrameTime = newFrameTime;
-
-		fpsCounter++;
-		if (glfwGetTime() - lastFpsTime > 1.) {
-			lastFpsTime = glfwGetTime();
-			fps = fpsCounter;
-			fpsCounter = 0U;
+		if (game.playing) {
+			long long newFrameTime = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch())).count();
+			frameTime = (float)(newFrameTime - lastFrameTime) / 1000.f;
+			lastFrameTime = newFrameTime;
+	
+			fpsCounter++;
+			if (glfwGetTime() - lastFpsTime > 1.) {
+				lastFpsTime = glfwGetTime();
+				fps = fpsCounter;
+				fpsCounter = 0U;
+			}
+	
+			
+			glfwGetFramebufferSize(window, &width, &height);
+	
+			game.dt = min(0.5f * frameTime, 0.5f);
+			for (int i = 0; i < 2; i++) {
+				game.tick();
+			}
+			renderer.renderMaterials();
+			soundDoer.tickSounds();
+	
+			glfwSwapBuffers(window);
 		}
-
-		int width, height;
-		
-		glfwGetFramebufferSize(window, &width, &height);
-
-		game.dt = min(0.5f * frameTime, 0.5f);
-		for (int i = 0; i < 2; i++) {
-			game.tick(width, height);
-		}
-
-		renderer.renderMaterials(width, height);
-		soundDoer.tickSounds();
-
-		glfwSwapBuffers(window);
 		glfwPollEvents();
 	}
 	for (int i = 0; i < (int)renderer.materials.size(); i++) {
