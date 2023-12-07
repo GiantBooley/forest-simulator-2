@@ -170,10 +170,16 @@ class Controls {
 	   Vec2 clipMouse{0.f, 0.f};
 	   Vec2 previousClipMouse{0.f, 0.f};
 };
+int width, height;
 class Camera {
 public:
 	Vec2 pos{0.f, 0.f};
 	float zoom = 13.f;
+	
+	float left() {return pos.x - 2.f * zoom;}
+	float right() {return pos.x + 2.f * zoom;}
+	float bottom() {return pos.y - 2.f * zoom * ((float)height / (float)width);}
+	float top() {return pos.y + 2.f * zoom * ((float)height / (float)width);}
 };
 float distance(Vec2 v1, Vec2 v2) {
 	return sqrt(powf(v2.x - v1.x, 2.f) + powf(v2.y - v1.y, 2.f));
@@ -525,13 +531,13 @@ struct sVec3 {
 	short int r, g, b;
 };
 struct Light {
-	iVec2 pos;
+	Vec2 pos;
 	sVec3 intensity;
 };
 struct Photon {
-	float x, y, xv, yv, r, g, b;
+	float x, y, xv, yv;
+	short int r, g, b;
 };
-int width, height;
 class World {
 	public:
 	vector<Entity> entities = {{0}};
@@ -592,19 +598,69 @@ class World {
 			}
 		}
 	}
-	void lightingStep(vector<Light> lights, float left, float right) {
-		
-		for (int i = 0; i < 500; i++) { // rt steps
-			for (int j = 0; j < (int)photons.size(); j++) {
-				photons[j].x += photons[j].xv;
-				//asdasdadsif (getTile((int)photons[j].x))
-				photons[j].y += photons[j].yv;
+	sVec3 currentLightmap[worldWidth][worldHeight];
+	void lightingStep(vector<Light> lights, float dt) {
+		float photonSpeed = 0.25f;
+		float howmanyper = 0.1f;
+		for (float r = 0; r < PI * 2.f; r += howmanyper) {
+			photons.push_back({
+				lights[0].pos.x,
+				lights[0].pos.y,
+				sin(r) * photonSpeed,
+				cos(r) * photonSpeed,
+				(short int)(howmanyper * 5.f * lights[0].intensity.r), 
+				(short int)(howmanyper * 5.f * lights[0].intensity.g), 
+				(short int)(howmanyper * 5.f * lights[0].intensity.b)
+			});
+		}
+		int right = camera.right();
+		int top = camera.top();
+		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
+			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
+				currentLightmap[x][y] = {127, 127, 127};
+			}
+		}
+		for (int i = (int)photons.size() - 1; i >= 0; i--) {
+			for (int j = 0; j < 24; j++) { // rt steps
+				if (isPointAir(photons[i].x + photons[i].xv, photons[i].y)) photons[i].x += photons[i].xv;
+				else {
+					photons[i].xv *= -1.f;
+					photons[i].r -= 3;
+					photons[i].g -= 3;
+					photons[i].b -= 3;
+				}
+				if (isPointAir(photons[j].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
+				else {
+					photons[i].yv *= -1.f;
+					photons[i].r -= 3;
+					photons[i].g -= 3;
+					photons[i].b -= 3;
+				}
+
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].r += photons[i].r / 40;
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].g += photons[i].g / 40;
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].b += photons[i].b / 40;
+				if (photons[i].x > camera.right() || photons[i].x < camera.left() || photons[i].y < camera.bottom() || photons[i].y > camera.top() || (photons[i].r + photons[i].g + photons[i].b) / 3 < 10) {
+					photons.erase(photons.begin() + i);
+					break;
+				}
+			}
+		}
+		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
+			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
+				lightmap[x][y].r = lerp(lightmap[x][y].r, currentLightmap[x][y].r, 0.1f);
+				lightmap[x][y].g = lerp(lightmap[x][y].g, currentLightmap[x][y].g, 0.1f);
+				lightmap[x][y].b = lerp(lightmap[x][y].b, currentLightmap[x][y].b, 0.1f);
 			}
 		}
 	}
 	Tile getTile(int x, int y) {
 		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return {0};
 		return tiles[x][y];
+	}
+	bool isPointAir(float x, float y) {
+		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return false;
+		return tiles[(int)x][(int)y].type == ttypes::air;
 	}
 	void setTile(int x, int y, Tile t) {
 		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return;
@@ -656,7 +712,6 @@ class GameState {
 	World world;
 	float dt = 1.f;
 	float x = 0.f;
-	float lightingRecalculateDelay = 0.25f;
 	float playing = true;
 	void tick() {
 		controls.previousClipMouse = controls.clipMouse;
@@ -667,12 +722,7 @@ class GameState {
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
-		lightingRecalculateDelay -= dt;
-		if (lightingRecalculateDelay <= 0.f) {
-			lightingRecalculateDelay += 0.5f;
-			//asdasdasdworld.recalculateLightingWithLights();
-		}
-
+		world.lightingStep({{{world.entities[0].pos.x, world.entities[0].pos.y + 1.f}, {275, 275, 275}}}, dt);
 		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
 			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
 		}
@@ -826,10 +876,6 @@ public:
 
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
-	float cameraLeft;
-	float cameraRight;
-	float cameraBottom;
-	float cameraTop;
 
 	vector<Vertex> vertices = {};
 	vector<vector<unsigned int>> indiceses = {};
@@ -860,17 +906,13 @@ public:
 	void buildThem() {
 		aspect = (float)width / (float)height;
 		clearVertices();
-		cameraLeft = game->world.camera.pos.x - 2.f * game->world.camera.zoom;
-		cameraRight = game->world.camera.pos.x + 2.f * game->world.camera.zoom;
-		cameraBottom = game->world.camera.pos.y - 2.f * game->world.camera.zoom / aspect;
-		cameraTop = game->world.camera.pos.y + 2.f * game->world.camera.zoom / aspect;
 		addRect(-20000.f, -10000.f, -10000.f, 40000.f, 20000.f, getMatID("sky"));
 		for (int x = 0; x < game->world.worldWidth; x++) {
-			if ((float)x + 1.f < cameraLeft) continue;
-			if ((float)x > cameraRight) break;
+			if ((float)x + 1.f < game->world.camera.left()) continue;
+			if ((float)x > game->world.camera.right()) break;
 			for (int y = 0; y < game->world.worldHeight; y++) {
-				if ((float)y + 1.f < cameraBottom) continue;
-				if ((float)y > cameraTop) break;
+				if ((float)y + 1.f < game->world.camera.bottom()) continue;
+				if ((float)y > game->world.camera.top()) break;
 				float lightR = ((float)game->world.lightmap[x][y].r) / 255.f;
 				float lightG = ((float)game->world.lightmap[x][y].g) / 255.f;
 				float lightB = ((float)game->world.lightmap[x][y].b) / 255.f;
@@ -1019,7 +1061,7 @@ private:
 	//============================
 
 	void addRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
-		if (x + w < cameraLeft || x > cameraRight || y + h < cameraBottom || y > cameraTop) return;
+		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
 			0U+end, 2U+end, 1U+end,
@@ -1033,7 +1075,7 @@ private:
 		});
 	}
 	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB) {
-		if (x + w < cameraLeft || x > cameraRight || y + h < cameraBottom || y > cameraTop) return;
+		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
 			0U+end, 2U+end, 1U+end,
@@ -1047,7 +1089,7 @@ private:
 		});
 	}
 	void addRotatedRect(float x, float y, float z, float w, float h, int matId, float theta, float originX, float originY) {
-		if (x + w < cameraLeft || x > cameraRight || y + h < cameraBottom || y > cameraTop) return;
+		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
 			0U+end, 2U+end, 1U+end,
