@@ -538,6 +538,34 @@ struct Photon {
 	float x, y, xv, yv;
 	short int r, g, b;
 };
+// jeffrey thombpson blog line rect intsersection
+bool lineLine(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
+
+  // calculate the direction of the lines
+  float uA = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+  float uB = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
+
+  // if uA and uB are between 0-1, lines are colliding
+  if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
+    //float intersectionX = x1 + (uA * (x2-x1));
+    //float intersectionY = y1 + (uA * (y2-y1));
+    return true;
+  }
+  return false;
+}
+bool lineRect(float x1, float y1, float x2, float y2, float rx, float ry, float rw, float rh) {
+  bool left =   lineLine(x1,y1,x2,y2, rx,ry,rx, ry+rh);
+  bool right =  lineLine(x1,y1,x2,y2, rx+rw,ry, rx+rw,ry+rh);
+  bool top =    lineLine(x1,y1,x2,y2, rx,ry, rx+rw,ry);
+  bool bottom = lineLine(x1,y1,x2,y2, rx,ry+rh, rx+rw,ry+rh);
+
+  return (left || right || top || bottom);
+}
+void rotateVector(float* x, float* y, float theta) {
+	float oldX = *x;
+	*x = *x * cos(theta) - *y * sin(theta);
+	*y = *y * cos(theta) + oldX * sin(theta);
+}
 class World {
 	public:
 	vector<Entity> entities = {{0}};
@@ -601,7 +629,7 @@ class World {
 	sVec3 currentLightmap[worldWidth][worldHeight];
 	void lightingStep(vector<Light> lights, float dt) {
 		float photonSpeed = 0.5f;
-		float howmanyper = 0.08f;
+		float howmanyper = 10.08f;
 		for (float r = 0; r < PI * 2.f; r += howmanyper) {
 			photons.push_back({
 				lights[0].pos.x,
@@ -616,37 +644,60 @@ class World {
 		int right = camera.right();
 		int top = camera.top();
 		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
+			photons.push_back({(float)x + 0.5f, min(camera.top(), (float)(static_cast<int>(worldHeight))) - 0.5f, 0.f, -1.f, (short int)255, (short int)255, (short int)255});
 			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
 				currentLightmap[x][y] = {0, 0, 0};
 			}
 		}
 		for (int i = (int)photons.size() - 1; i >= 0; i--) {
-			for (int j = 0; j < 24; j++) { // rt steps
+			for (int j = 0; j < 15; j++) { // rt steps
 				if (isPointAir(photons[i].x + photons[i].xv, photons[i].y)) photons[i].x += photons[i].xv;
-				else {
+				else { // diffuse
 					photons[i].xv *= -1.f;
-					photons[i].r -= 10;
-					photons[i].g -= 10;
-					photons[i].b -= 10;
+					rotateVector(&photons[i].xv, &photons[i].yv, randFloat() * 3.14f - 1.57f);
+					photons[i].r -= 1;
+					photons[i].g -= 1;
+					photons[i].b -= 1;
 				}
 				if (isPointAir(photons[i].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
 				else {
 					photons[i].yv *= -1.f;
-					photons[i].r -= 10;
-					photons[i].g -= 10;
-					photons[i].b -= 10;
+					rotateVector(&photons[i].xv, &photons[i].yv, randFloat() * 3.14f - 1.57f);
+					photons[i].r -= 1;
+					photons[i].g -= 1;
+					photons[i].b -= 1;
 				}
 
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].r += photons[i].r / 20;
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].g += photons[i].g / 20;
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].b += photons[i].b / 20;
-				if (photons[i].x > camera.right() || photons[i].x < camera.left() || photons[i].y < camera.bottom() || photons[i].y > camera.top() || (photons[i].r + photons[i].g + photons[i].b) / 3 < 10) {
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].r += photons[i].r;
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].g += photons[i].g;
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].b += photons[i].b; // if not aabb check line
+				if (
+					(photons[i].r + photons[i].g + photons[i].b) / 3 <= 0 ||
+					(
+						(
+							photons[i].x > camera.right() ||
+							photons[i].x < camera.left() ||
+							photons[i].y < camera.bottom() ||
+							photons[i].y > camera.top()
+						) &&
+						!lineRect(
+							photons[i].x,
+							photons[i].y,
+							photons[i].x + photons[i].xv * 32767.f,
+							photons[i].y + photons[i].yv * 32767.f,
+							camera.left(),
+							camera.bottom(),
+							camera.right() - camera.left(),
+							camera.top() - camera.bottom()
+						)
+					)
+				) {
 					photons.erase(photons.begin() + i);
 					break;
 				}
 			}
 		}
-		float how = 0.25f;
+		float how = 0.02f;
 		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
 			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
 				lightmap[x][y].r = lerp(lightmap[x][y].r, currentLightmap[x][y].r, how);
@@ -723,7 +774,7 @@ class GameState {
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
-		world.lightingStep({{{world.entities[0].pos.x, world.entities[0].pos.y + 1.f}, {275, 275, 275}}}, dt);
+		world.lightingStep({{{0.5f, 800.f}, {2075, 2705, 2705}}}, dt);
 		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
 			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
 		}
@@ -968,6 +1019,7 @@ public:
 			tris += (int)indiceses[i].size() / 3;
 		}
 		addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText("photons: " + to_string(game->world.photons.size()), -0.9f, -0.05f, -0.1f, 0.05f, 0.8f, 2.f, false);
 	}
 	void renderMaterials() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
