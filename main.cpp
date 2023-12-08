@@ -600,24 +600,24 @@ class World {
 	}
 	sVec3 currentLightmap[worldWidth][worldHeight];
 	void lightingStep(vector<Light> lights, float dt) {
-		float photonSpeed = 0.25f;
-		float howmanyper = 0.1f;
+		float photonSpeed = 0.5f;
+		float howmanyper = 0.08f;
 		for (float r = 0; r < PI * 2.f; r += howmanyper) {
 			photons.push_back({
 				lights[0].pos.x,
 				lights[0].pos.y,
 				sin(r) * photonSpeed,
 				cos(r) * photonSpeed,
-				(short int)(howmanyper * 5.f * lights[0].intensity.r), 
-				(short int)(howmanyper * 5.f * lights[0].intensity.g), 
-				(short int)(howmanyper * 5.f * lights[0].intensity.b)
+				(short int)(lights[0].intensity.r), 
+				(short int)(lights[0].intensity.g), 
+				(short int)(lights[0].intensity.b)
 			});
 		}
 		int right = camera.right();
 		int top = camera.top();
 		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
 			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
-				currentLightmap[x][y] = {127, 127, 127};
+				currentLightmap[x][y] = {0, 0, 0};
 			}
 		}
 		for (int i = (int)photons.size() - 1; i >= 0; i--) {
@@ -625,32 +625,33 @@ class World {
 				if (isPointAir(photons[i].x + photons[i].xv, photons[i].y)) photons[i].x += photons[i].xv;
 				else {
 					photons[i].xv *= -1.f;
-					photons[i].r -= 3;
-					photons[i].g -= 3;
-					photons[i].b -= 3;
+					photons[i].r -= 10;
+					photons[i].g -= 10;
+					photons[i].b -= 10;
 				}
-				if (isPointAir(photons[j].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
+				if (isPointAir(photons[i].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
 				else {
 					photons[i].yv *= -1.f;
-					photons[i].r -= 3;
-					photons[i].g -= 3;
-					photons[i].b -= 3;
+					photons[i].r -= 10;
+					photons[i].g -= 10;
+					photons[i].b -= 10;
 				}
 
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].r += photons[i].r / 40;
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].g += photons[i].g / 40;
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].b += photons[i].b / 40;
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].r += photons[i].r / 20;
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].g += photons[i].g / 20;
+				currentLightmap[(int)photons[i].x][(int)photons[i].y].b += photons[i].b / 20;
 				if (photons[i].x > camera.right() || photons[i].x < camera.left() || photons[i].y < camera.bottom() || photons[i].y > camera.top() || (photons[i].r + photons[i].g + photons[i].b) / 3 < 10) {
 					photons.erase(photons.begin() + i);
 					break;
 				}
 			}
 		}
+		float how = 0.25f;
 		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
 			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
-				lightmap[x][y].r = lerp(lightmap[x][y].r, currentLightmap[x][y].r, 0.1f);
-				lightmap[x][y].g = lerp(lightmap[x][y].g, currentLightmap[x][y].g, 0.1f);
-				lightmap[x][y].b = lerp(lightmap[x][y].b, currentLightmap[x][y].b, 0.1f);
+				lightmap[x][y].r = lerp(lightmap[x][y].r, currentLightmap[x][y].r, how);
+				lightmap[x][y].g = lerp(lightmap[x][y].g, currentLightmap[x][y].g, how);
+				lightmap[x][y].b = lerp(lightmap[x][y].b, currentLightmap[x][y].b, how);
 			}
 		}
 	}
