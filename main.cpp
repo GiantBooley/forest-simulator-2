@@ -8,13 +8,13 @@
 #include <AudioFile.h>
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
+#include <PerlinNoise.hpp>
 
 #include <stdlib.h>
 #include <iostream>
 #include <fstream>
 #include <vector>
 #include <string>
-#include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <filesystem>
@@ -26,6 +26,7 @@ using namespace std;
 bool debug = false;
 
 GLFWwindow* window;
+bool windowIconified = false;
 
 struct Vertex {
 	float x, y, z;
@@ -162,6 +163,10 @@ class Controls {
 	   bool a = false;
 	   bool s = false;
 	   bool d = false;
+	   bool left = false;
+	   bool right = false;
+	   bool up = false;
+	   bool down = false;
 	   bool shift = false;
 	   bool space = false;
 	   bool mouseDown = false;
@@ -205,11 +210,11 @@ Controls controls;
 float roundToPlace(float x, float place) {
 	return round(x / place) * place;
 }
-float frameTime = 0.0f;
 unsigned int fps = 0U;
 unsigned int fpsCounter = fps;
-double lastFpsTime = 0U;
-long long lastFrameTime = 0LL;
+double lastFpsTime = 0.; // resets every second
+double frameTime = 0.0f;
+double lastFrameTime = 0.;
 string getFileNameFromPath(string path) {
 	for (int i = (int)path.size() - 1; i >= 0; i--) {
 		if (i == 0 || path.at(i) == '/' || path.at(i) == '\\') {
@@ -456,6 +461,8 @@ public:
 	float speed = 1.6f;
 	Item hand{0};
 	iVec2 facingVector = {0, 0};
+	float punchDelay = 0.5f;
+	float punchDelayTimer = 0.f;
 	
 	Entity(int typea) {
 		type = typea;
@@ -574,6 +581,10 @@ class World {
 	const static int worldWidth = 5000;
 	const static int worldHeight = 1000;
 
+	const siv::PerlinNoise::seed_type seed = 123456u;
+
+	const siv::PerlinNoise perlin{ seed };
+
 	// lighting vars
 	Tile tiles[worldWidth][worldHeight];
 	Vec3 lightmap[worldWidth][worldHeight];
@@ -595,10 +606,13 @@ class World {
 		for (int x = 0; x < worldWidth; x++) {
 			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
+				lightmap[x][y].r = 1.f;
+				lightmap[x][y].g = 1.f;
+				lightmap[x][y].b = 1.f;
 				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
+				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 4) < 0.5f) tiles[x][y] = {ttypes::air};
 			}
 		}
-		memset(&lightmap, 0x7f, sizeof(lightmap));
 		// tree generation
 		for (int x = 2; x < worldWidth - 2; x++) {
 			for (int y = worldHeight - 1 - 10; y >= 1; y--) {
@@ -630,7 +644,7 @@ class World {
 	Vec3 currentLightmap[worldWidth][worldHeight];
 	void lightingStep(vector<Light> lights, float dt) {
 		float photonSpeed = 0.5f;
-		float howmanyper = 10.08f;
+		float howmanyper = 0.08f;
 		for (float r = 0; r < PI * 2.f; r += howmanyper) {
 			photons.push_back({
 				lights[0].pos.x,
@@ -724,6 +738,7 @@ class World {
 					lightmap[x][y].b = currentLightmap[x][y].b;
 				}
 				lightmapN[x][y]++;
+				lightmapN[x][y] = min(lightmapN[x][y], 200);
 			}
 		}
 	}
@@ -760,19 +775,21 @@ class World {
 		return {false, false, e, nullptr};
 	}
 	void makeEntityPunch(Entity* e) {
+		if (e->punchDelayTimer > 0.f) return;
+		e->punchDelayTimer = e->punchDelay;
 		e->hand.swingRotation = 0.f;
 		e->hand.isSwinging = true;
 		if (e->facingVector.x != -1) {
 			if (getTile((int)e->pos.x + 1, (int)e->pos.y + 1).type != ttypes::air) {
-				damageTile((int)e->pos.x + 1, (int)e->pos.y + 1, 0.2f);
+				damageTile((int)e->pos.x + 1, (int)e->pos.y + 1, 0.3f);
 			} else {
-				damageTile((int)e->pos.x + 1, (int)e->pos.y, 0.2f);
+				damageTile((int)e->pos.x + 1, (int)e->pos.y, 0.3f);
 			}
 		} else {
 			if (getTile((int)e->pos.x - 1, (int)e->pos.y + 1).type != ttypes::air) {
-				damageTile((int)e->pos.x - 1, (int)e->pos.y + 1, 0.2f);
+				damageTile((int)e->pos.x - 1, (int)e->pos.y + 1, 0.3f);
 			} else {
-				damageTile((int)e->pos.x - 1, (int)e->pos.y, 0.2f);
+				damageTile((int)e->pos.x - 1, (int)e->pos.y, 0.3f);
 			}
 		}
 	}
@@ -795,14 +812,14 @@ class GameState {
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
-		world.lightingStep({{{0.5f, 800.f}, {2075, 2705, 2705}}}, dt);
+		world.lightingStep({{{world.entities[0].pos.x, world.entities[0].pos.y + world.entities[0].size.y / 2.f}, {0.15f, 0.07f, 0.07f}}}, dt);
 		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
 			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
 		}
 
 		if (controls.space) {
 			Entity e = {1};
-			e.pos.x = randFloat() * 10.f;
+			e.pos.x = randFloat() * 100.f;
 			if (!world.getEntityCollision(&e).collided) world.entities.push_back(e);
 		}
 		//find player is
@@ -812,7 +829,6 @@ class GameState {
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			Entity* e = &world.entities[i];
-
 			if (randFloat() < 0.0002f && e->type != 0) {
 				Entity latest = {e->type};
 				if (!world.getEntityCollision(&latest).collided) {
@@ -822,14 +838,16 @@ class GameState {
 					world.entities.push_back(latest);
 				}
 			}
+			e->punchDelayTimer -= dt;
+			if (e->punchDelayTimer < 0.f) e->punchDelayTimer = 0.f;
 
 			bool controlsLeft = false;
 			bool controlsRight = false;
 			bool controlsUp = false;
 			if (e->controlsType == 0) {
-				controlsLeft = controls.a;
-				controlsRight = controls.d;
-				controlsUp = controls.w;
+				controlsLeft = controls.a || controls.left;
+				controlsRight = controls.d || controls.right;
+				controlsUp = controls.w || controls.up;
 			} else {
 				int nearestPlayerI = -1;
 				float nearestPlayerDistance = 0.f;
@@ -844,6 +862,7 @@ class GameState {
 					controlsUp = true;
 					controlsLeft = (world.entities[playerIs[nearestPlayerI]].pos.x < e->pos.x);
 					controlsRight = (world.entities[playerIs[nearestPlayerI]].pos.x > e->pos.x);
+					world.makeEntityPunch(e);
 				}
 			}
 			if (e->hand.isSwinging) {
@@ -902,7 +921,7 @@ class GameState {
 			float targetY = 0.f;
 			for (int i = 0; i < (int)playerIs.size(); i++) {
 				targetX += world.entities[playerIs[i]].pos.x;
-				targetY += world.entities[playerIs[i]].pos.y;
+				targetY += world.entities[playerIs[i]].pos.y + world.entities[playerIs[i]].size.y / 2.f;
 			}
 			targetX /= (float)playerIs.size();
 			targetY /= (float)playerIs.size();
@@ -1227,8 +1246,10 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_D) controls.d = true;
 		else if (key == GLFW_KEY_F) game.world.entities[0].vel.y += 20.f;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
-		else if (key == GLFW_KEY_UP) game.world.camera.zoom--;
-		else if (key == GLFW_KEY_DOWN) game.world.camera.zoom++;
+		else if (key == GLFW_KEY_UP) controls.up = true;
+		else if (key == GLFW_KEY_DOWN) controls.down = true;
+		else if (key == GLFW_KEY_LEFT) controls.left = true;
+		else if (key == GLFW_KEY_RIGHT) controls.right = true;
 		else if (key == GLFW_KEY_SPACE) {
 			controls.space = true;
 		}
@@ -1240,6 +1261,10 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_S) controls.s = false;
 		else if (key == GLFW_KEY_D) controls.d = false;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = false;
+		else if (key == GLFW_KEY_UP) controls.up = false;
+		else if (key == GLFW_KEY_DOWN) controls.down = false;
+		else if (key == GLFW_KEY_LEFT) controls.left = false;
+		else if (key == GLFW_KEY_RIGHT) controls.right = false;
 		else if (key == GLFW_KEY_SPACE) controls.space = false;
 	}
 }
@@ -1269,6 +1294,13 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
 	controls.mouse = {(float)xpos, (float)ypos};
 }
+static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+	game.world.camera.zoom -= yoffset;
+}
+static void iconify_callback(GLFWwindow* window, int iconified) {
+	windowIconified = (iconified == GLFW_TRUE) ? true : false;
+}
+
 
 static void error_callback(int error, const char* description) {
 	fprintf(stderr, "ERROR: %s\n", description);
@@ -1296,12 +1328,15 @@ int main(void) {
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
 	glfwSetCursorPosCallback(window, cursor_position_callback);
+	glfwSetScrollCallback(window, scroll_callback);
+	glfwSetWindowIconifyCallback(window, iconify_callback);
 
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
 	glfwSwapInterval(1);
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
+	glfwSetWindowSizeLimits(window, 160, 90, 160000, 90000);
 	//glEnable(GL_DEPTH_TEST);
 	//glEnable(GL_CULL_FACE);
 	//glFrontFace(GL_CW);
@@ -1311,13 +1346,13 @@ int main(void) {
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 
 	glClearColor(0.4f, 0.4f, 0.9f, 1.f);
-	lastFrameTime = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch())).count();
+	lastFrameTime = glfwGetTime();
 	
 	GameStateRenderer renderer{&game};
 	while (!glfwWindowShouldClose(window)) {
-		if (game.playing) {
-			long long newFrameTime = (chrono::duration_cast<chrono::milliseconds>(chrono::system_clock::now().time_since_epoch())).count();
-			frameTime = (float)(newFrameTime - lastFrameTime) / 1000.f;
+		if (game.playing && !windowIconified) {
+			double newFrameTime = glfwGetTime();
+			frameTime = newFrameTime - lastFrameTime;
 			lastFrameTime = newFrameTime;
 	
 			fpsCounter++;
@@ -1327,10 +1362,11 @@ int main(void) {
 				fpsCounter = 0U;
 			}
 	
-			
 			glfwGetFramebufferSize(window, &width, &height);
+			width = max(width, 1);
+			height = max(height, 1);
 	
-			game.dt = min(0.5f * frameTime, 0.5f);
+			game.dt = min(0.5f * (float)frameTime, 0.5f);
 			for (int i = 0; i < 2; i++) {
 				game.tick();
 			}
