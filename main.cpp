@@ -527,16 +527,16 @@ class Particle {
 		material = matial;
 	}
 };
-struct sVec3 {
-	short int r, g, b;
+struct Vec3 {
+	float r, g, b;
 };
 struct Light {
 	Vec2 pos;
-	sVec3 intensity;
+	Vec3 intensity;
 };
 struct Photon {
 	float x, y, xv, yv;
-	short int r, g, b;
+	float r, g, b;
 };
 // jeffrey thombpson blog line rect intsersection
 bool lineLine(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
@@ -576,7 +576,8 @@ class World {
 
 	// lighting vars
 	Tile tiles[worldWidth][worldHeight];
-	sVec3 lightmap[worldWidth][worldHeight];
+	Vec3 lightmap[worldWidth][worldHeight];
+	int lightmapN[worldWidth][worldHeight];
 	vector<Photon> photons = {};
 
 	PerlinGenerator gen;
@@ -626,7 +627,7 @@ class World {
 			}
 		}
 	}
-	sVec3 currentLightmap[worldWidth][worldHeight];
+	Vec3 currentLightmap[worldWidth][worldHeight];
 	void lightingStep(vector<Light> lights, float dt) {
 		float photonSpeed = 0.5f;
 		float howmanyper = 10.08f;
@@ -636,15 +637,23 @@ class World {
 				lights[0].pos.y,
 				sin(r) * photonSpeed,
 				cos(r) * photonSpeed,
-				(short int)(lights[0].intensity.r), 
-				(short int)(lights[0].intensity.g), 
-				(short int)(lights[0].intensity.b)
+				lights[0].intensity.r, 
+				lights[0].intensity.g, 
+				lights[0].intensity.b
 			});
 		}
 		int right = camera.right();
 		int top = camera.top();
 		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
-			photons.push_back({(float)x + 0.5f, min(camera.top(), (float)(static_cast<int>(worldHeight))) - 0.5f, 0.f, -1.f, (short int)255, (short int)255, (short int)255});
+			photons.push_back({
+				(float)x + 0.5f,
+				min(camera.top(), (float)(static_cast<int>(worldHeight))) - 0.5f,
+				0.f,
+				-1.f,
+				0.5f,
+				0.5f,
+				0.5f
+			});
 			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
 				currentLightmap[x][y] = {0, 0, 0};
 			}
@@ -653,26 +662,32 @@ class World {
 			for (int j = 0; j < 15; j++) { // rt steps
 				if (isPointAir(photons[i].x + photons[i].xv, photons[i].y)) photons[i].x += photons[i].xv;
 				else { // diffuse
+					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].yv].r += photons[i].r;
+					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].yv].g += photons[i].g;
+					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].yv].b += photons[i].b;
 					photons[i].xv *= -1.f;
 					rotateVector(&photons[i].xv, &photons[i].yv, randFloat() * 3.14f - 1.57f);
-					photons[i].r -= 1;
-					photons[i].g -= 1;
-					photons[i].b -= 1;
+					photons[i].r -= 0.1f;
+					photons[i].g -= 0.1f;
+					photons[i].b -= 0.1f;
 				}
 				if (isPointAir(photons[i].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
 				else {
+					currentLightmap[(int)photons[i].x][(int)(photons[i].y + photons[i].yv)].r += photons[i].r;
+					currentLightmap[(int)photons[i].x][(int)(photons[i].y + photons[i].yv)].g += photons[i].g;
+					currentLightmap[(int)photons[i].x][(int)(photons[i].y + photons[i].yv)].b += photons[i].b;
 					photons[i].yv *= -1.f;
 					rotateVector(&photons[i].xv, &photons[i].yv, randFloat() * 3.14f - 1.57f);
-					photons[i].r -= 1;
-					photons[i].g -= 1;
-					photons[i].b -= 1;
+					photons[i].r -= 0.1f;
+					photons[i].g -= 0.1f;
+					photons[i].b -= 0.1f;
 				}
 
 				currentLightmap[(int)photons[i].x][(int)photons[i].y].r += photons[i].r;
 				currentLightmap[(int)photons[i].x][(int)photons[i].y].g += photons[i].g;
 				currentLightmap[(int)photons[i].x][(int)photons[i].y].b += photons[i].b; // if not aabb check line
 				if (
-					(photons[i].r + photons[i].g + photons[i].b) / 3 <= 0 ||
+					(photons[i].r + photons[i].g + photons[i].b) / 3.f <= 0.f ||
 					(
 						(
 							photons[i].x > camera.right() ||
@@ -697,12 +712,18 @@ class World {
 				}
 			}
 		}
-		float how = 0.02f;
 		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
 			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
-				lightmap[x][y].r = lerp(lightmap[x][y].r, currentLightmap[x][y].r, how);
-				lightmap[x][y].g = lerp(lightmap[x][y].g, currentLightmap[x][y].g, how);
-				lightmap[x][y].b = lerp(lightmap[x][y].b, currentLightmap[x][y].b, how);
+				if (lightmapN[x][y] > 0) {
+					lightmap[x][y].r = (lightmap[x][y].r * (float)lightmapN[x][y] + currentLightmap[x][y].r) / (float)(lightmapN[x][y] + 1);
+					lightmap[x][y].g = (lightmap[x][y].g * (float)lightmapN[x][y] + currentLightmap[x][y].g) / (float)(lightmapN[x][y] + 1);
+					lightmap[x][y].b = (lightmap[x][y].b * (float)lightmapN[x][y] + currentLightmap[x][y].b) / (float)(lightmapN[x][y] + 1);
+				} else {
+					lightmap[x][y].r = currentLightmap[x][y].r;
+					lightmap[x][y].g = currentLightmap[x][y].g;
+					lightmap[x][y].b = currentLightmap[x][y].b;
+				}
+				lightmapN[x][y]++;
 			}
 		}
 	}
@@ -965,9 +986,9 @@ public:
 			for (int y = 0; y < game->world.worldHeight; y++) {
 				if ((float)y + 1.f < game->world.camera.bottom()) continue;
 				if ((float)y > game->world.camera.top()) break;
-				float lightR = ((float)game->world.lightmap[x][y].r) / 255.f;
-				float lightG = ((float)game->world.lightmap[x][y].g) / 255.f;
-				float lightB = ((float)game->world.lightmap[x][y].b) / 255.f;
+				float lightR = game->world.lightmap[x][y].r;
+				float lightG = game->world.lightmap[x][y].g;
+				float lightB = game->world.lightmap[x][y].b;
 				switch (game->world.tiles[x][y].type) {
 					case ttypes::air:
 					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
@@ -1008,7 +1029,7 @@ public:
 			Entity* e = &game->world.entities[i];
 			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material));
 			float handX = (game->world.entities[i].facingVector.x == -1) ? (e->pos.x - e->size.x / 2.f - 0.2f) : (e->pos.x + e->size.x / 2.f + 0.1f);
-			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.f, e->hand.size.x, e->hand.size.y, getMatID(e->hand.material), e->hand.swingRotation * (signbit(e->facingVector.x) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
+			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.f, e->hand.size.x, e->hand.size.y, getMatID(e->hand.material), e->hand.swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
 			addRect(game->world.particles[i].pos.x - 0.5f, game->world.particles[i].pos.y - 0.5f, 0.f, 1.f, 1.f, getMatID(game->world.particles[i].material));
