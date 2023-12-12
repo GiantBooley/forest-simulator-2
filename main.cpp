@@ -582,11 +582,13 @@ class World {
 	const static int worldHeight = 1000;
 
 	const siv::PerlinNoise::seed_type seed = 123456u;
-
 	const siv::PerlinNoise perlin{ seed };
+	const siv::PerlinNoise::seed_type seed2 = 123457u;
+	const siv::PerlinNoise perlin2{ seed2 };
 
 	// lighting vars
 	Tile tiles[worldWidth][worldHeight];
+	Tile bgTiles[worldWidth][worldHeight];
 	Vec3 lightmap[worldWidth][worldHeight];
 	int lightmapN[worldWidth][worldHeight];
 	vector<Photon> photons = {};
@@ -610,7 +612,8 @@ class World {
 				lightmap[x][y].g = 1.f;
 				lightmap[x][y].b = 1.f;
 				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
-				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 4) < 0.5f) tiles[x][y] = {ttypes::air};
+				bgTiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
+				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 4) < 0.5f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 4) < 0.5f) tiles[x][y] = {ttypes::air};
 			}
 		}
 		// tree generation
@@ -643,6 +646,7 @@ class World {
 	}
 	Vec3 currentLightmap[worldWidth][worldHeight];
 	void lightingStep(vector<Light> lights, float dt) {
+		return;//asdasd
 		float photonSpeed = 0.5f;
 		float howmanyper = 0.08f;
 		for (float r = 0; r < PI * 2.f; r += howmanyper) {
@@ -745,6 +749,10 @@ class World {
 	Tile getTile(int x, int y) {
 		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return {0};
 		return tiles[x][y];
+	}
+	Tile getBgTile(int x, int y) {
+		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return {0};
+		return bgTiles[x][y];
 	}
 	bool isPointAir(float x, float y) {
 		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return false;
@@ -957,7 +965,6 @@ public:
 		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
 		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
 		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
-		{"air"					   , solidV.shader, solidF.shader		  , "resources/texture/air.png"},
 		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"sentry"					  , solidV.shader, solidF.shader		  , "resources/texture/sentry.png"},
@@ -1008,36 +1015,8 @@ public:
 				float lightR = game->world.lightmap[x][y].r;
 				float lightG = game->world.lightmap[x][y].g;
 				float lightB = game->world.lightmap[x][y].b;
-				switch (game->world.tiles[x][y].type) {
-					case ttypes::air:
-					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
-					break;
-					case 1:
-					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB);
-					if (game->world.getTile(x, y + 1).type == ttypes::air) {
-						addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB);
-					} else {
-						if (game->world.getTile(x + 1, y + 1).type == ttypes::air && game->world.getTile(x + 1, y).type == ttypes::dirt) {
-							addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_left"), 1.f, lightR, lightG, lightB);
-						}
-						if (game->world.getTile(x - 1, y + 1).type == ttypes::air && game->world.getTile(x - 1, y).type == ttypes::dirt) {
-							addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("grass_right"), 1.f, lightR, lightG, lightB);
-						}
-					}
-					break;
-					case 2:
-					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB);
-					break;
-					case 3:
-					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("wood"), 1.f, lightR, lightG, lightB);
-					break;
-					case 4:
-					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("log"), 1.f, lightR, lightG, lightB);
-					break;
-					case 5:
-					addWorldRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("leaves"), 1.f, lightR, lightG, lightB);
-					break;
-				}
+				addTile(x, y, 0, game->world.tiles[x][y].type, lightR, lightG, lightB);
+				addTile(x, y, -5, game->world.bgTiles[x][y].type, lightR, lightG, lightB);
 				if (game->world.tiles[x][y].health < game->world.tiles[x][y].maxHealth) {
 					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.tiles[x][y].maxHealth - game->world.tiles[x][y].health) / game->world.tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
 				}
@@ -1060,6 +1039,7 @@ public:
 		}
 		addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		addText("photons: " + to_string(game->world.photons.size()), -0.9f, -0.05f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText("block size: " + to_string((float)height / game->world.camera.zoom / 2.f) + "px", -0.9f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
 	}
 	void renderMaterials() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1181,6 +1161,38 @@ private:
 			{x+w, y  , z, 1.f, 1.f, tileHealth, lightR, lightG, lightB}
 		});
 	}
+	void addTile(int x, int y, int z, int type, float lightR, float lightG, float lightB) {
+		switch (type) {
+			case ttypes::air:
+			//addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
+			break;
+			case 1:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB);
+			if (game->world.getTile(x, y + 1).type == ttypes::air) {
+				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB);
+			} else {
+				if (game->world.getTile(x + 1, y + 1).type == ttypes::air && game->world.getTile(x + 1, y).type == ttypes::dirt) {
+					addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass_left"), 1.f, lightR, lightG, lightB);
+				}
+				if (game->world.getTile(x - 1, y + 1).type == ttypes::air && game->world.getTile(x - 1, y).type == ttypes::dirt) {
+					addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass_right"), 1.f, lightR, lightG, lightB);
+				}
+			}
+			break;
+			case 2:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB);
+			break;
+			case 3:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("wood"), 1.f, lightR, lightG, lightB);
+			break;
+			case 4:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("log"), 1.f, lightR, lightG, lightB);
+			break;
+			case 5:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("leaves"), 1.f, lightR, lightG, lightB);
+			break;
+		}
+	}
 	void addRotatedRect(float x, float y, float z, float w, float h, int matId, float theta, float originX, float originY) {
 		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
 		unsigned int end = vertices.size();
@@ -1295,7 +1307,7 @@ static void cursor_position_callback(GLFWwindow* window, double xpos, double ypo
 	controls.mouse = {(float)xpos, (float)ypos};
 }
 static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-	game.world.camera.zoom -= yoffset;
+	game.world.camera.zoom /= pow(1.1, yoffset);
 }
 static void iconify_callback(GLFWwindow* window, int iconified) {
 	windowIconified = (iconified == GLFW_TRUE) ? true : false;
