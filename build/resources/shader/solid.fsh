@@ -10,11 +10,12 @@ out vec4 FragColor;
 uniform sampler2D texture1;
 uniform float time;
 
-float lerp(float a, float b, float t) {
+vec3 lerp(vec3 a, vec3 b, float t) {
 	return (b - a) * t + a;
 }
 void main() {
 	vec4 color = texture2D(texture1, texCoord);
 	color.rgb *= lightColor;
+	color.rgb = lerp(color.rgb, vec3(0.25, 0.25, 0.25), pos.z / -3.);
 	FragColor = color;
 }

@@ -468,6 +468,7 @@ public:
 		type = typea;
 		material = type == 0 ? "player" : "sentry";
 		controlsType = type == 0 ? 0 : 1;
+		if (type == 1) size = {0.6f, 2.8f};
 		health = type == 0 ? 10123123123.f : 20.f;
 		maxHealth = health;
 	}
@@ -597,9 +598,10 @@ class World {
 	float time = 0.f;
 	float getGeneratorHeight(float x) {
 		float height = 0.f;
+		float scale = 100.f;
 		for (int i = 0; i < 7; i++) {
 			float it = powf(2.f, (float)i);
-			height += gen.getVal(x * 0.1f * it) / it * 10.f;
+			height += gen.getVal(x / scale * it) / it * scale;
 		}
 		return height + 700.f;
 	}
@@ -608,12 +610,9 @@ class World {
 		for (int x = 0; x < worldWidth; x++) {
 			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
-				lightmap[x][y].r = 1.f;
-				lightmap[x][y].g = 1.f;
-				lightmap[x][y].b = 1.f;
-				tiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
-				bgTiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
-				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 4) < 0.5f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 4) < 0.5f) tiles[x][y] = {ttypes::air};
+				lightmap[x][y] = {1.f, 1.f, 1.f};
+				tiles[x][y] = bgTiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
+				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.5f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.2f) tiles[x][y] = {ttypes::air};
 			}
 		}
 		// tree generation
@@ -874,7 +873,7 @@ class GameState {
 				}
 			}
 			if (e->hand.isSwinging) {
-				e->hand.swingRotation += 5.f * dt;
+				e->hand.swingRotation += 15.f * dt;
 				if (e->hand.swingRotation > PI) {
 					e->hand.swingRotation = 0.f;
 					e->hand.isSwinging = false;
@@ -965,10 +964,9 @@ public:
 		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
 		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
 		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
-		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"sentry"					  , solidV.shader, solidF.shader		  , "resources/texture/sentry.png"},
-		{"light_map"					   , solidV.shader, solidF.shader		  , "resources/texture/light_map.png"},
+		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
 		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
 		{"sword"					   , solidV.shader, solidF.shader		  , "resources/texture/sword.png"},
@@ -1007,30 +1005,31 @@ public:
 		clearVertices();
 		addRect(-20000.f, -10000.f, -10000.f, 40000.f, 20000.f, getMatID("sky"));
 		for (int x = 0; x < game->world.worldWidth; x++) {
-			if ((float)x + 1.f < game->world.camera.left()) continue;
-			if ((float)x > game->world.camera.right()) break;
+			if ((float)x + 1.f < game->world.camera.left() - 2.f) continue;
+			if ((float)x > game->world.camera.right() + 2.f) break;
 			for (int y = 0; y < game->world.worldHeight; y++) {
-				if ((float)y + 1.f < game->world.camera.bottom()) continue;
-				if ((float)y > game->world.camera.top()) break;
+				if ((float)y + 1.f < game->world.camera.bottom() - 2.f) continue;
+				if ((float)y > game->world.camera.top() + 2.f) break;
 				float lightR = game->world.lightmap[x][y].r;
 				float lightG = game->world.lightmap[x][y].g;
 				float lightB = game->world.lightmap[x][y].b;
-				addTile(x, y, 0, game->world.tiles[x][y].type, lightR, lightG, lightB);
-				addTile(x, y, -5, game->world.bgTiles[x][y].type, lightR, lightG, lightB);
+				addTile(x, y, 0, game->world.tiles[x][y].type, lightR, lightG, lightB, false);
+				addTile(x, y, -2, game->world.bgTiles[x][y].type, lightR, lightG, lightB, true);
 				if (game->world.tiles[x][y].health < game->world.tiles[x][y].maxHealth) {
-					addRect((float)x, (float)y, 0.f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.tiles[x][y].maxHealth - game->world.tiles[x][y].health) / game->world.tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
+					addRect((float)x, (float)y, 0.001f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.tiles[x][y].maxHealth - game->world.tiles[x][y].health) / game->world.tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
 				}
 			}
 		}
-		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.f, 1.f, 1.f, getMatID("select"));
+		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.002f, 1.f, 1.f, getMatID("select"));
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
 			Entity* e = &game->world.entities[i];
-			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material));
-			float handX = (game->world.entities[i].facingVector.x == -1) ? (e->pos.x - e->size.x / 2.f - 0.2f) : (e->pos.x + e->size.x / 2.f + 0.1f);
-			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.f, e->hand.size.x, e->hand.size.y, getMatID(e->hand.material), e->hand.swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
+			int fvx = game->world.entities[i].facingVector.x;
+			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
+			float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.2f) : (e->pos.x + e->size.x / 2.f + 0.1f);
+			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->hand.size.x, e->hand.size.y, getMatID(e->hand.material), e->hand.swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
-			addRect(game->world.particles[i].pos.x - 0.5f, game->world.particles[i].pos.y - 0.5f, 0.f, 1.f, 1.f, getMatID(game->world.particles[i].material));
+			addRect(game->world.particles[i].pos.x - 0.5f, game->world.particles[i].pos.y - 0.5f, 0.004f, 1.f, 1.f, getMatID(game->world.particles[i].material));
 		}
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		int tris = 0;
@@ -1039,7 +1038,7 @@ public:
 		}
 		addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		addText("photons: " + to_string(game->world.photons.size()), -0.9f, -0.05f, -0.1f, 0.05f, 0.8f, 2.f, false);
-		addText("block size: " + to_string((float)height / game->world.camera.zoom / 2.f) + "px", -0.9f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText("block size: " + to_string((long long)((float)height / game->world.camera.zoom / 2.f)) + "px", -0.9f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
 	}
 	void renderMaterials() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1148,7 +1147,7 @@ private:
 		});
 	}
 	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB) {
-		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
+		if (x + w < game->world.camera.left() + z || x > game->world.camera.right() - z || y + h < game->world.camera.bottom() + z || y > game->world.camera.top() - z) return;
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
 			0U+end, 2U+end, 1U+end,
@@ -1161,23 +1160,24 @@ private:
 			{x+w, y  , z, 1.f, 1.f, tileHealth, lightR, lightG, lightB}
 		});
 	}
-	void addTile(int x, int y, int z, int type, float lightR, float lightG, float lightB) {
+	void addTile(int x, int y, int z, int type, float lightR, float lightG, float lightB, bool isBackground) {
 		switch (type) {
 			case ttypes::air:
 			//addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
 			break;
 			case 1:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB);
-			if (game->world.getTile(x, y + 1).type == ttypes::air) {
+			if ((isBackground ? game->world.getBgTile(x, y + 1) : game->world.getTile(x, y + 1)).type == ttypes::air) {
 				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB);
 			} else {
-				if (game->world.getTile(x + 1, y + 1).type == ttypes::air && game->world.getTile(x + 1, y).type == ttypes::dirt) {
+				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB);
+			}/* else {
+				if ((isBackground ? game->world.getBgTile(x + 1, y + 1) : game->world.getTile(x + 1, y + 1)).type == ttypes::air && (isBackground ? game->world.getBgTile(x + 1, y) : game->world.getTile(x + 1, y)).type == ttypes::dirt) {
 					addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass_left"), 1.f, lightR, lightG, lightB);
 				}
-				if (game->world.getTile(x - 1, y + 1).type == ttypes::air && game->world.getTile(x - 1, y).type == ttypes::dirt) {
+				if ((isBackground ? game->world.getBgTile(x - 1, y + 1) : game->world.getTile(x - 1, y + 1)).type == ttypes::air && (isBackground ? game->world.getBgTile(x - 1, y) : game->world.getTile(x - 1, y)).type == ttypes::dirt) {
 					addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass_right"), 1.f, lightR, lightG, lightB);
 				}
-			}
+			}*/
 			break;
 			case 2:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB);
@@ -1349,7 +1349,7 @@ int main(void) {
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwSetWindowSizeLimits(window, 160, 90, 160000, 90000);
-	//glEnable(GL_DEPTH_TEST);
+	glEnable(GL_DEPTH_TEST);
 	//glEnable(GL_CULL_FACE);
 	//glFrontFace(GL_CW);
 	//glCullFace(GL_FRONT);
