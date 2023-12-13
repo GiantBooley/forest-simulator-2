@@ -446,6 +446,11 @@ class Item {
 		}
 	}
 };
+namespace etypes {
+	enum etypes {
+		player,sentry,mimic
+	};
+}
 class Entity {
 public:
 	Vec2 pos = {20.f, 720.f};
@@ -466,10 +471,26 @@ public:
 	
 	Entity(int typea) {
 		type = typea;
-		material = type == 0 ? "player" : "sentry";
-		controlsType = type == 0 ? 0 : 1;
-		if (type == 1) size = {0.6f, 2.8f};
-		health = type == 0 ? 10123123123.f : 20.f;
+		switch (type) {
+			case etypes::player:
+				material = "player";
+				controlsType = 0;
+				size = {0.5f, 1.8f};
+				health = 202349862384.f;
+				break;
+			case etypes::sentry:
+				material = "sentry";
+				controlsType = 1;
+				size = {0.6f, 2.8f};
+				health = 20.f;
+				break;
+			case etypes::mimic:
+				material = "mimic";
+				controlsType = 0;
+				size = {0.6f, 2.8f};
+				health = 20.f;
+				break;
+		}
 		maxHealth = health;
 	}
 };
@@ -489,15 +510,34 @@ class Tile {
 	int type;
 	float health = 1.f;
 	float maxHealth;
+	float friction = 0.5f;
 	Tile(int atype) {
 		type = atype;
 		switch (type) {
-			case (ttypes::air):health = 43289.f;break;
-			case (ttypes::dirt):health = 3.f;break;
-			case (ttypes::stone):health = 60.f;break;
-			case (ttypes::wood):health = 7.f;break;
-			case (ttypes::log):health = 10.f;break;
-			case (ttypes::leaves):health = 0.5f;break;
+			case (ttypes::air):
+				health = 43289.f;
+				friction = 0.f;
+				break;
+			case (ttypes::dirt):
+				health = 3.f;
+				friction = 0.25f;
+				break;
+			case (ttypes::stone):
+				health = 60.f;
+				friction = 0.5f;
+				break;
+			case (ttypes::wood):
+				health = 7.f;
+				friction = 0.3f;
+				break;
+			case (ttypes::log):
+				health = 10.f;
+				friction = 0.75f;
+				break;
+			case (ttypes::leaves):
+				health = 0.5f;
+				friction = 0.1f;
+				break;
 		}
 		maxHealth = health;
 	}
@@ -645,7 +685,7 @@ class World {
 	}
 	Vec3 currentLightmap[worldWidth][worldHeight];
 	void lightingStep(vector<Light> lights, float dt) {
-		return;//asdasd
+		//return;//asdasd
 		float photonSpeed = 0.5f;
 		float howmanyper = 0.08f;
 		for (float r = 0; r < PI * 2.f; r += howmanyper) {
@@ -819,20 +859,24 @@ class GameState {
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
-		world.lightingStep({{{world.entities[0].pos.x, world.entities[0].pos.y + world.entities[0].size.y / 2.f}, {0.15f, 0.07f, 0.07f}}}, dt);
-		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
-			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
-		}
 
 		if (controls.space) {
-			Entity e = {1};
+			Entity e = {etypes::mimic};
 			e.pos.x = randFloat() * 100.f;
 			if (!world.getEntityCollision(&e).collided) world.entities.push_back(e);
 		}
 		//find player is
 		vector<int> playerIs;
+		vector<Light> lights;
 		for (int i = 0; i < (int)world.entities.size(); i++) {
-			if (world.entities[i].type == 0) playerIs.push_back(i);
+			if (world.entities[i].type == etypes::player) {
+				playerIs.push_back(i);
+				lights.push_back({{world.entities[i].pos.x, world.entities[i].pos.y + world.entities[i].size.y / 2.f}, {0.15f, 0.07f, 0.07f}});
+			};
+		}
+		world.lightingStep(lights, dt);
+		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
+			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			Entity* e = &world.entities[i];
@@ -880,7 +924,21 @@ class GameState {
 				}
 			};
 
-			float friction = e->onGround ? 0.9f : 0.01f;
+			float friction;
+			if (e->onGround) {
+				Tile frictionTile = world.getTile((int)e->pos.x, (int)(e->pos.y - 0.1f));
+				if (frictionTile.type == ttypes::air) {
+					float one = 1.f;
+					if (modf(e->pos.x, &one) > 0.5f) {
+						frictionTile = world.getTile((int)e->pos.x + 1, (int)(e->pos.y - 0.1f));
+					} else {
+						frictionTile = world.getTile((int)e->pos.x - 1, (int)(e->pos.y - 0.1f));
+					}
+				}
+				friction = frictionTile.friction;
+			} else {
+				friction = 0.01f;
+			}
 			
 			e->vel.y += gravity * dt;
 			float netMovement = controlsRight - controlsLeft;
@@ -908,7 +966,7 @@ class GameState {
 					e->vel.y = 6.f;
 				}
 			}
-			if (e->type == 1) e->health -= 1.f * dt;
+			e->health -= 1.f * dt;
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			if (world.entities[i].health <= 0.f) {
@@ -966,6 +1024,7 @@ public:
 		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
 		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
 		{"sentry"					  , solidV.shader, solidF.shader		  , "resources/texture/sentry.png"},
+		{"mimic"					  , solidV.shader, solidF.shader		  , "resources/texture/mimic.png"},
 		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
 		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
@@ -1003,7 +1062,7 @@ public:
 	void buildThem() {
 		aspect = (float)width / (float)height;
 		clearVertices();
-		addRect(-20000.f, -10000.f, -10000.f, 40000.f, 20000.f, getMatID("sky"));
+		//DELETE SKY cas plockaddRect(-20000.f, -10000.f, -10000.f, 40000.f, 20000.f, getMatID("sky"));
 		for (int x = 0; x < game->world.worldWidth; x++) {
 			if ((float)x + 1.f < game->world.camera.left() - 2.f) continue;
 			if ((float)x > game->world.camera.right() + 2.f) break;
@@ -1256,7 +1315,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_A) controls.a = true;
 		else if (key == GLFW_KEY_S) controls.s = true;
 		else if (key == GLFW_KEY_D) controls.d = true;
-		else if (key == GLFW_KEY_F) game.world.entities[0].vel.y += 20.f;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
 		else if (key == GLFW_KEY_UP) controls.up = true;
 		else if (key == GLFW_KEY_DOWN) controls.down = true;
