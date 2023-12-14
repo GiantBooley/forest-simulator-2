@@ -170,6 +170,7 @@ class Controls {
 	   bool shift = false;
 	   bool space = false;
 	   bool mouseDown = false;
+	   bool xPressed = false;
 	   Vec2 mouse{0.f, 0.f};
 	   Vec2 worldMouse{0.f, 0.f};
 	   Vec2 clipMouse{0.f, 0.f};
@@ -476,7 +477,7 @@ public:
 				material = "player";
 				controlsType = 0;
 				size = {0.5f, 1.8f};
-				health = 202349862384.f;
+				health = 20.f;
 				break;
 			case etypes::sentry:
 				material = "sentry";
@@ -817,7 +818,7 @@ class World {
 		if (getTile((int)(e->pos.x - e->size.x / 2.f), (int)e->pos.y).type != ttypes::air || getTile((int)(e->pos.x + e->size.x / 2.f), (int)e->pos.y).type != ttypes::air || getTile((int)(e->pos.x - e->size.x / 2.f), (int)(e->pos.y + e->size.y)).type != ttypes::air || getTile((int)(e->pos.x + e->size.x / 2.f), (int)(e->pos.y + e->size.y)).type != ttypes::air) return {true, false, e, nullptr};
 		for (int i = 0; i < (int)entities.size(); i++) {
 			if (entities[i].id == e->id) continue;
-			if (areTwoEntitiesCollidingWithEachother(e, &entities[i])) return {true, true, e, &entities[1]};
+			if (areTwoEntitiesCollidingWithEachother(e, &entities[i])) return {true, true, e, &entities[i]};
 		}
 		return {false, false, e, nullptr};
 	}
@@ -826,17 +827,24 @@ class World {
 		e->punchDelayTimer = e->punchDelay;
 		e->hand.swingRotation = 0.f;
 		e->hand.isSwinging = true;
-		if (e->facingVector.x != -1) {
-			if (getTile((int)e->pos.x + 1, (int)e->pos.y + 1).type != ttypes::air) {
-				damageTile((int)e->pos.x + 1, (int)e->pos.y + 1, 0.3f);
-			} else {
-				damageTile((int)e->pos.x + 1, (int)e->pos.y, 0.3f);
+		bool facingRight = e->facingVector.x != -1;
+		for (int i = (int)e->size.y; i >= 0; i--) {
+			if (getTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i).type != ttypes::air) {
+				damageTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i, 0.3f);
+				break;
 			}
-		} else {
-			if (getTile((int)e->pos.x - 1, (int)e->pos.y + 1).type != ttypes::air) {
-				damageTile((int)e->pos.x - 1, (int)e->pos.y + 1, 0.3f);
-			} else {
-				damageTile((int)e->pos.x - 1, (int)e->pos.y, 0.3f);
+		}
+		for (int i = 0; i < (int)entities.size(); i++) {
+			float right = facingRight ? (e->pos.x + e->size.x / 2.f + 1.f) : (e->pos.x - e->size.x / 2.f);
+			float left = facingRight ? (e->pos.x + e->size.x / 2.f) : (e->pos.x - e->size.x / 2.f - 1.f);
+			if (
+				right > entities[i].pos.x - entities[i].size.x / 2.f && 
+				left < entities[i].pos.x + entities[i].size.x / 2.f && 
+				e->pos.y + e->size.y / 2.f > entities[i].pos.y - entities[i].size.y / 2.f && 
+				e->pos.y - e->size.y / 2.f < entities[i].pos.y + entities[i].size.y / 2.f
+			) {
+				particles.push_back({{entities[i].pos.x, entities[i].pos.y + entities[i].size.y}, {0.f, 1.f}, 1.f, "damage_heart"});
+				entities[i].health -= 1.f;
 			}
 		}
 	}
@@ -861,7 +869,7 @@ class GameState {
 
 
 		if (controls.space) {
-			Entity e = {etypes::mimic};
+			Entity e = {etypes::sentry};
 			e.pos.x = randFloat() * 100.f;
 			if (!world.getEntityCollision(&e).collided) world.entities.push_back(e);
 		}
@@ -871,6 +879,10 @@ class GameState {
 		for (int i = 0; i < (int)world.entities.size(); i++) {
 			if (world.entities[i].type == etypes::player) {
 				playerIs.push_back(i);
+				if (controls.xPressed) {
+					controls.xPressed = false;
+					world.makeEntityPunch(&world.entities[i]);
+				}
 				lights.push_back({{world.entities[i].pos.x, world.entities[i].pos.y + world.entities[i].size.y / 2.f}, {0.15f, 0.07f, 0.07f}});
 			};
 		}
@@ -966,7 +978,6 @@ class GameState {
 					e->vel.y = 6.f;
 				}
 			}
-			e->health -= 1.f * dt;
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			if (world.entities[i].health <= 0.f) {
@@ -1028,6 +1039,7 @@ public:
 		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
 		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
 		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
+		{"damage_heart"					   , solidV.shader, solidF.shader		  , "resources/texture/damage_heart.png"},
 		{"sword"					   , solidV.shader, solidF.shader		  , "resources/texture/sword.png"},
 
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
@@ -1323,7 +1335,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_SPACE) {
 			controls.space = true;
 		}
-		else if (key == GLFW_KEY_X) game.world.makeEntityPunch(&game.world.entities[0]);
+		else if (key == GLFW_KEY_X) controls.xPressed = true;
 	}
 	else if (action == GLFW_RELEASE) {
 		if (key == GLFW_KEY_W) controls.w = false;
