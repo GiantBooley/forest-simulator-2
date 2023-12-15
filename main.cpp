@@ -424,6 +424,11 @@ class Material {
 		}
 };
 int newEntityID = 0;
+namespace itypes {
+	enum itypes {
+		none, sword
+	};
+}
 class Item {
 	public:
 	int type;
@@ -432,18 +437,23 @@ class Item {
 	string material;
 	Vec2 size;
 
-	float attackDelay;
-	float swingRotation = 0.f;
-	float isSwinging = false;
+	float punchDelay;
 
 	Item(int typea) {
 		type = typea;
 		switch (type) {
-			case 0:
+			case itypes::none:
+			durability = 29843298670.f;
+			damage = 0.f;
+			material = "gio";
+			size = {0.3f, 1.f};
+			break;
+			case itypes::sword:
 			durability = 600.f;
 			damage = 3.f;
 			material = "sword";
 			size = {0.3f, 1.f};
+			break;
 		}
 	}
 };
@@ -465,13 +475,18 @@ public:
 	float health;
 	float maxHealth;
 	float speed = 1.6f;
-	Item hand{0};
+	vector<Item> items;
+	int itemNumber = 0;
 	iVec2 facingVector = {0, 0};
-	float punchDelay = 0.5f;
 	float punchDelayTimer = 0.f;
+	float swingRotation = 0.f;
+	float isSwinging = false;
 	
 	Entity(int typea) {
 		type = typea;
+		for (int i = 0; i < 8; i++) {
+			items.push_back({itypes::none});
+		}
 		switch (type) {
 			case etypes::player:
 				material = "player";
@@ -689,16 +704,18 @@ class World {
 		//return;//asdasd
 		float photonSpeed = 0.5f;
 		float howmanyper = 0.08f;
-		for (float r = 0; r < PI * 2.f; r += howmanyper) {
-			photons.push_back({
-				lights[0].pos.x,
-				lights[0].pos.y,
-				sin(r) * photonSpeed,
-				cos(r) * photonSpeed,
-				lights[0].intensity.r, 
-				lights[0].intensity.g, 
-				lights[0].intensity.b
-			});
+		for (int i = 0; i < (int)lights.size(); i++) {
+			for (float r = 0; r < PI * 2.f; r += howmanyper) {
+				photons.push_back({
+					lights[i].pos.x,
+					lights[i].pos.y,
+					sin(r) * photonSpeed,
+					cos(r) * photonSpeed,
+					lights[i].intensity.r, 
+					lights[i].intensity.g, 
+					lights[i].intensity.b
+				});
+			}
 		}
 		int right = camera.right();
 		int top = camera.top();
@@ -720,9 +737,9 @@ class World {
 			for (int j = 0; j < 15; j++) { // rt steps
 				if (isPointAir(photons[i].x + photons[i].xv, photons[i].y)) photons[i].x += photons[i].xv;
 				else { // diffuse
-					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].yv].r += photons[i].r;
-					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].yv].g += photons[i].g;
-					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].yv].b += photons[i].b;
+					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].y].r += photons[i].r;
+					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].y].g += photons[i].g;
+					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].y].b += photons[i].b;
 					photons[i].xv *= -1.f;
 					rotateVector(&photons[i].xv, &photons[i].yv, randFloat() * 3.14f - 1.57f);
 					photons[i].r -= 0.1f;
@@ -824,9 +841,9 @@ class World {
 	}
 	void makeEntityPunch(Entity* e) {
 		if (e->punchDelayTimer > 0.f) return;
-		e->punchDelayTimer = e->punchDelay;
-		e->hand.swingRotation = 0.f;
-		e->hand.isSwinging = true;
+		e->punchDelayTimer = e->items[e->itemNumber].punchDelay;
+		e->swingRotation = 0.f;
+		e->isSwinging = true;
 		bool facingRight = e->facingVector.x != -1;
 		for (int i = (int)e->size.y; i >= 0; i--) {
 			if (getTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i).type != ttypes::air) {
@@ -883,7 +900,7 @@ class GameState {
 					controls.xPressed = false;
 					world.makeEntityPunch(&world.entities[i]);
 				}
-				lights.push_back({{world.entities[i].pos.x, world.entities[i].pos.y + world.entities[i].size.y / 2.f}, {0.15f, 0.07f, 0.07f}});
+				lights.push_back({{world.entities[i].pos.x, world.entities[i].pos.y + world.entities[i].size.y / 2.f}, {0.3f, 0.15f, 0.15f}});
 			};
 		}
 		world.lightingStep(lights, dt);
@@ -892,11 +909,11 @@ class GameState {
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			Entity* e = &world.entities[i];
-			if (randFloat() < 0.0002f && e->type != 0) {
+			if (randFloat() < 0.002f && e->type != 0) {
 				Entity latest = {e->type};
+				latest.pos.x = e->pos.x;
+				latest.pos.y = e->pos.y + e->size.y + 0.1f;
 				if (!world.getEntityCollision(&latest).collided) {
-					latest.pos.y = e->pos.y + e->size.y;
-					latest.pos.x = e->pos.x;
 					latest.speed += 0.3f * (randFloat() - 0.5f);
 					world.entities.push_back(latest);
 				}
@@ -928,11 +945,11 @@ class GameState {
 					world.makeEntityPunch(e);
 				}
 			}
-			if (e->hand.isSwinging) {
-				e->hand.swingRotation += 15.f * dt;
-				if (e->hand.swingRotation > PI) {
-					e->hand.swingRotation = 0.f;
-					e->hand.isSwinging = false;
+			if (e->isSwinging) {
+				e->swingRotation += 15.f * dt;
+				if (e->swingRotation > PI) {
+					e->swingRotation = 0.f;
+					e->isSwinging = false;
 				}
 			};
 
@@ -979,6 +996,19 @@ class GameState {
 				}
 			}
 		}
+		if ((int)playerIs.size() > 0) {
+			float targetX = 0.f;
+			float targetY = 0.f;
+			for (int i = 0; i < (int)playerIs.size(); i++) {
+				targetX += world.entities[playerIs[i]].pos.x;
+				targetY += world.entities[playerIs[i]].pos.y + world.entities[playerIs[i]].size.y / 2.f;
+			}
+			targetX /= (float)playerIs.size();
+			targetY /= (float)playerIs.size();
+
+			world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.05f, 1.f);
+			world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.05f, 1.f);
+		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			if (world.entities[i].health <= 0.f) {
 				world.particles.push_back({world.entities[i].pos, {0.f, 1.f}, 2.f, "skull"});
@@ -992,20 +1022,6 @@ class GameState {
 			if (world.particles[i].time <= 0) world.particles.erase(world.particles.begin() + i);
 		}
 
-		if ((int)playerIs.size() > 0) {
-			float targetX = 0.f;
-			float targetY = 0.f;
-			for (int i = 0; i < (int)playerIs.size(); i++) {
-				targetX += world.entities[playerIs[i]].pos.x;
-				targetY += world.entities[playerIs[i]].pos.y + world.entities[playerIs[i]].size.y / 2.f;
-			}
-			targetX /= (float)playerIs.size();
-			targetY /= (float)playerIs.size();
-
-			world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.1f, 1.f);
-			world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.1f, 1.f);
-		}
-		
 		world.time += dt;
 	}
 };
@@ -1041,6 +1057,7 @@ public:
 		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
 		{"damage_heart"					   , solidV.shader, solidF.shader		  , "resources/texture/damage_heart.png"},
 		{"sword"					   , solidV.shader, solidF.shader		  , "resources/texture/sword.png"},
+		{"gio"					   , guiV.shader, solidF.shader		  , "resources/texture/mimic.png"},
 
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
@@ -1097,11 +1114,16 @@ public:
 			int fvx = game->world.entities[i].facingVector.x;
 			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
 			float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.2f) : (e->pos.x + e->size.x / 2.f + 0.1f);
-			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->hand.size.x, e->hand.size.y, getMatID(e->hand.material), e->hand.swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
+			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->items[e->itemNumber].size.x, e->items[e->itemNumber].size.y, getMatID(e->items[e->itemNumber].material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
 			addRect(game->world.particles[i].pos.x - 0.5f, game->world.particles[i].pos.y - 0.5f, 0.004f, 1.f, 1.f, getMatID(game->world.particles[i].material));
 		}
+
+		for (int i = 0; i < (int)game->world.entities[0].items.size(); i++) {
+			addScreenRect((float)i * 0.1f - 0.5f, -1.f, -0.1f, 0.1f, 0.1f, getMatID("gio"));
+		}
+			addScreenRect(0.f, 0.f, -0.1f, 0.1f, 0.1f, getMatID("gio"));
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		int tris = 0;
 		for (int i = 0; i < (int)indiceses.size(); i++) {
@@ -1205,6 +1227,19 @@ private:
 
 	void addRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
+		unsigned int end = vertices.size();
+		indiceses[matId].insert(indiceses[matId].end(), {
+			0U+end, 2U+end, 1U+end,
+			1U+end, 2U+end, 3U+end
+		});
+		vertices.insert(vertices.end(), {
+			{x  , y+h, z, u    , v    , 1.f, 1.f, 1.f, 1.f},
+			{x+w, y+h, z, u + s, v    , 1.f, 1.f, 1.f, 1.f},
+			{x  , y  , z, u    , v + t, 1.f, 1.f, 1.f, 1.f},
+			{x+w, y  , z, u + s, v + t, 1.f, 1.f, 1.f, 1.f}
+		});
+	}
+	void addScreenRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		unsigned int end = vertices.size();
 		indiceses[matId].insert(indiceses[matId].end(), {
 			0U+end, 2U+end, 1U+end,
@@ -1370,7 +1405,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		double xpos, ypos;
 		//getting cursor position
 		glfwGetCursorPos(window, &xpos, &ypos);
-		game.world.setTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, {ttypes::wood});
+		game.world.setTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, {ttypes::stone});
 	}
 }
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
