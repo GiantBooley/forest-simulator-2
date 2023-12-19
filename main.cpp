@@ -18,6 +18,9 @@
 #include <iomanip>
 #include <sstream>
 #include <filesystem>
+#include <random>
+#include <cstdlib>
+#include <ctime>
 
 #define PI 3.1415926535897932384626433832795028841971693993751058
 
@@ -445,7 +448,7 @@ class Item {
 			case itypes::none:
 			durability = 29843298670.f;
 			damage = 0.f;
-			material = "gio";
+			material = "empty";
 			size = {0.3f, 1.f};
 			break;
 			case itypes::sword:
@@ -464,7 +467,7 @@ namespace etypes {
 }
 class Entity {
 public:
-	Vec2 pos = {20.f, 720.f};
+	Vec2 pos = {20.f, 715.f};
 	Vec2 size = {0.5f, 1.8f};
 	Vec2 vel = {0.f, 0.f};
 	int id = newEntityID++;
@@ -485,7 +488,7 @@ public:
 	Entity(int typea) {
 		type = typea;
 		for (int i = 0; i < 8; i++) {
-			items.push_back({itypes::none});
+			items.push_back({i == 0 ? itypes::sword : itypes::none});
 		}
 		switch (type) {
 			case etypes::player:
@@ -1038,6 +1041,7 @@ public:
 
 	Shader solidF{"resources/shader/solid.fsh", GL_FRAGMENT_SHADER};
 	Shader guiF{"resources/shader/gui.fsh", GL_FRAGMENT_SHADER};
+	Shader emptyF{"resources/shader/empty.fsh", GL_FRAGMENT_SHADER};
 
 	vector<Material> materials = {
 		{"sky"				      , solidV.shader , solidF.shader			, "resources/texture/sky.png"}, 
@@ -1057,7 +1061,8 @@ public:
 		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
 		{"damage_heart"					   , solidV.shader, solidF.shader		  , "resources/texture/damage_heart.png"},
 		{"sword"					   , solidV.shader, solidF.shader		  , "resources/texture/sword.png"},
-		{"gio"					   , guiV.shader, solidF.shader		  , "resources/texture/mimic.png"},
+		{"items_selected"					   , guiV.shader, guiF.shader		  , "resources/texture/items_selected.png"},
+		{"empty"					   , guiV.shader, emptyF.shader		  , "resources/texture/dirt.png"},
 
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
@@ -1121,9 +1126,9 @@ public:
 		}
 
 		for (int i = 0; i < (int)game->world.entities[0].items.size(); i++) {
-			addScreenRect((float)i * 0.1f - 0.5f, -1.f, -0.1f, 0.1f, 0.1f, getMatID("gio"));
+			addScreenRect((float)i * 0.1f - 0.5f, -1.f, -0.1f, 0.1f, 0.1f, getMatID(game->world.entities[0].items[i].material));
 		}
-			addScreenRect(0.f, 0.f, -0.1f, 0.1f, 0.1f, getMatID("gio"));
+		addScreenRect((float)game->world.entities[0].itemNumber * 0.1f - 0.5f, -1.f, -0.11f, 0.1f, 0.1f, getMatID("items_selected"));
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		int tris = 0;
 		for (int i = 0; i < (int)indiceses.size(); i++) {
@@ -1189,41 +1194,6 @@ private:
 			indiceses[i].clear();
 		}
 	}
-
-	//============================
-	//== world space =============
-	//===========================
-
-	void addPlane(float x, float y, float z, float w, float d, bool worldUv, int matId) {
-		unsigned int end = vertices.size();
-		indiceses[matId].insert(indiceses[matId].end(), {
-			0U+end, 1U+end, 2U+end,
-			1U+end, 3U+end, 2U+end
-		});
-		vertices.insert(vertices.end(), {
-			{x  , y , z+d, 0.f              , 0.f              , 1.f, 1.f, 1.f, 1.f},
-			{x+w, y , z+d, worldUv ? w : 1.f, 0.f              , 1.f, 1.f, 1.f, 1.f},
-			{x  , y , z  , 0.f              , worldUv ? d : 1.f, 1.f, 1.f, 1.f, 1.f},
-			{x+w, y , z  , worldUv ? w : 1.f, worldUv ? d : 1.f, 1.f, 1.f, 1.f, 1.f}
-		});
-	}
-	void addQuad(Vec2 p1, Vec2 p2, Vec2 p3, Vec2 p4, int matId) { // clockwise
-		unsigned int end = vertices.size();
-		indiceses[matId].insert(indiceses[matId].end(), {
-			0U+end, 1U+end, 2U+end,
-			0U+end, 2U+end, 3U+end
-		});
-		vertices.insert(vertices.end(), {
-			{p1.x, p1.y, 0.f, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f},
-			{p2.x, p2.y, 0.f, 1.f, 0.f, 1.f, 1.f, 1.f, 1.f},
-			{p3.x, p3.y, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f},
-			{p4.x, p4.y, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f}
-		});
-	}
-
-	//============================
-	//== clip space ==============
-	//============================
 
 	void addRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
@@ -1362,6 +1332,14 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_A) controls.a = true;
 		else if (key == GLFW_KEY_S) controls.s = true;
 		else if (key == GLFW_KEY_D) controls.d = true;
+		else if (key == GLFW_KEY_1) game.world.entities[0].itemNumber = 0;
+		else if (key == GLFW_KEY_2) game.world.entities[0].itemNumber = 1;
+		else if (key == GLFW_KEY_3) game.world.entities[0].itemNumber = 2;
+		else if (key == GLFW_KEY_4) game.world.entities[0].itemNumber = 3;
+		else if (key == GLFW_KEY_5) game.world.entities[0].itemNumber = 4;
+		else if (key == GLFW_KEY_6) game.world.entities[0].itemNumber = 5;
+		else if (key == GLFW_KEY_7) game.world.entities[0].itemNumber = 6;
+		else if (key == GLFW_KEY_8) game.world.entities[0].itemNumber = 7;
 		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
 		else if (key == GLFW_KEY_UP) controls.up = true;
 		else if (key == GLFW_KEY_DOWN) controls.down = true;
@@ -1384,9 +1362,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		else if (key == GLFW_KEY_RIGHT) controls.right = false;
 		else if (key == GLFW_KEY_SPACE) controls.space = false;
 	}
-}
-bool mouseIntersectsClipRect(float x, float y, float w, float h) {
-	return controls.clipMouse.x > x && controls.clipMouse.x < x + w && controls.clipMouse.y > y && controls.clipMouse.y < y + h;
 }
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
 	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
@@ -1417,11 +1392,10 @@ static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) 
 static void iconify_callback(GLFWwindow* window, int iconified) {
 	windowIconified = (iconified == GLFW_TRUE) ? true : false;
 }
-
-
 static void error_callback(int error, const char* description) {
 	fprintf(stderr, "ERROR: %s\n", description);
 }
+
 int main(void) {
 	glfwSetErrorCallback(error_callback);
 
