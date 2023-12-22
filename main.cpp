@@ -440,7 +440,7 @@ class Item {
 	string material;
 	Vec2 size;
 
-	float punchDelay;
+	float punchDelay = 0.5f;
 
 	Item(int typea) {
 		type = typea;
@@ -878,6 +878,7 @@ class GameState {
 	float dt = 1.f;
 	float x = 0.f;
 	float playing = true;
+	int youNumber = -1;
 	void tick() {
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
@@ -896,8 +897,10 @@ class GameState {
 		//find player is
 		vector<int> playerIs;
 		vector<Light> lights;
+		youNumber = -1;
 		for (int i = 0; i < (int)world.entities.size(); i++) {
 			if (world.entities[i].type == etypes::player) {
+				if (youNumber != -1) youNumber = i;
 				playerIs.push_back(i);
 				if (controls.xPressed) {
 					controls.xPressed = false;
@@ -1041,6 +1044,8 @@ public:
 
 	Shader solidF{"resources/shader/solid.fsh", GL_FRAGMENT_SHADER};
 	Shader guiF{"resources/shader/gui.fsh", GL_FRAGMENT_SHADER};
+	Shader healthBarGreenF{"resources/shader/health_bar_green.fsh", GL_FRAGMENT_SHADER};
+	Shader healthBarBgF{"resources/shader/health_bar_background.fsh", GL_FRAGMENT_SHADER};
 	Shader emptyF{"resources/shader/empty.fsh", GL_FRAGMENT_SHADER};
 
 	vector<Material> materials = {
@@ -1062,6 +1067,8 @@ public:
 		{"damage_heart"					   , solidV.shader, solidF.shader		  , "resources/texture/damage_heart.png"},
 		{"sword"					   , solidV.shader, solidF.shader		  , "resources/texture/sword.png"},
 		{"items_selected"					   , guiV.shader, guiF.shader		  , "resources/texture/items_selected.png"},
+		{"health_green"					   , guiV.shader, healthBarGreenF.shader		  , "resources/texture/items_selected.png"},
+		{"health_bg"					   , guiV.shader, healthBarBgF.shader		  , "resources/texture/items_selected.png"},
 		{"empty"					   , guiV.shader, emptyF.shader		  , "resources/texture/dirt.png"},
 
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
@@ -1128,6 +1135,8 @@ public:
 		for (int i = 0; i < (int)game->world.entities[0].items.size(); i++) {
 			addScreenRect((float)i * 0.1f - 0.5f, -1.f, -0.1f, 0.1f, 0.1f, getMatID(game->world.entities[0].items[i].material));
 		}
+		addScreenRect(-0.5f, 0.9f, -0.11f, game->world.entities[0].health / game->world.entities[0].maxHealth, 0.1f, getMatID("health_green"));
+		addScreenRect(-0.5f, 0.9f, -0.105f, 1.f, 0.1f, getMatID("health_bg"));
 		addScreenRect((float)game->world.entities[0].itemNumber * 0.1f - 0.5f, -1.f, -0.11f, 0.1f, 0.1f, getMatID("items_selected"));
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		int tris = 0;
@@ -1440,6 +1449,7 @@ int main(void) {
 	lastFrameTime = glfwGetTime();
 	
 	GameStateRenderer renderer{&game};
+	
 	while (!glfwWindowShouldClose(window)) {
 		if (game.playing && !windowIconified) {
 			double newFrameTime = glfwGetTime();
