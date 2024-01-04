@@ -429,7 +429,7 @@ class Material {
 int newEntityID = 0;
 namespace itypes {
 	enum itypes {
-		none, sword
+		none, sword, bshorin, excalibur, burger
 	};
 }
 class Item {
@@ -439,6 +439,8 @@ class Item {
 	float damage;
 	string material;
 	Vec2 size;
+	bool isEdible = false;
+	float eatingHealth = 3.f;
 
 	float punchDelay = 0.5f;
 
@@ -450,12 +452,41 @@ class Item {
 			damage = 0.f;
 			material = "empty";
 			size = {0.3f, 1.f};
+			punchDelay = 0.5f;
 			break;
+
 			case itypes::sword:
 			durability = 600.f;
-			damage = 3.f;
+			damage = 1.5f;
 			material = "sword";
 			size = {0.3f, 1.f};
+			punchDelay = 0.5f;
+			break;
+
+			case itypes::bshorin:
+			durability = 60.f;
+			damage = 10.f;
+			material = "bshorin";
+			size = {1.f, 1.f};
+			punchDelay = 0.6f;
+			break;
+
+			case itypes::excalibur:
+			durability = 61230.f;
+			damage = 1000.f;
+			material = "excalibur";
+			size = {1.f, 1.5f};
+			punchDelay = 0.12f;
+			break;
+
+			case itypes::burger:
+			durability = 5.f;
+			damage = 0.1f;
+			material = "burger";
+			size = {1.f, 1.f};
+			punchDelay = 1.f;
+			isEdible = true;
+			eatingHealth = 3.f;
 			break;
 		}
 	}
@@ -467,7 +498,7 @@ namespace etypes {
 }
 class Entity {
 public:
-	Vec2 pos = {20.f, 715.f};
+	Vec2 pos = {20.f, 750.f};
 	Vec2 size = {0.5f, 1.8f};
 	Vec2 vel = {0.f, 0.f};
 	int id = newEntityID++;
@@ -490,24 +521,27 @@ public:
 		for (int i = 0; i < 8; i++) {
 			items.push_back({i == 0 ? itypes::sword : itypes::none});
 		}
+		items[1] = {itypes::bshorin};
+		items[2] = {itypes::excalibur};
+		items[3] = {itypes::burger};
 		switch (type) {
 			case etypes::player:
 				material = "player";
 				controlsType = 0;
 				size = {0.5f, 1.8f};
-				health = 20.f;
+				health = 10.f;
 				break;
 			case etypes::sentry:
 				material = "sentry";
 				controlsType = 1;
 				size = {0.6f, 2.8f};
-				health = 20.f;
+				health = 10.f;
 				break;
 			case etypes::mimic:
 				material = "mimic";
 				controlsType = 0;
 				size = {0.6f, 2.8f};
-				health = 20.f;
+				health = 10.f;
 				break;
 		}
 		maxHealth = health;
@@ -585,11 +619,13 @@ class Particle {
 	public:
 	Vec2 pos{0.f, 0.f};
 	Vec2 vel{0.f, 0.f};
+	Vec2 size{1.f, 1.f};
 	float time;
 	string material;
-	Particle(Vec2 poss, Vec2 vels, float times, string matial) {
+	Particle(Vec2 poss, Vec2 vels, Vec2 sizes, float times, string matial) {
 		pos = poss;
 		vel = vels;
+		size = sizes;
 		time = times;
 		material = matial;
 	}
@@ -633,6 +669,21 @@ void rotateVector(float* x, float* y, float theta) {
 	*x = *x * cos(theta) - *y * sin(theta);
 	*y = *y * cos(theta) + oldX * sin(theta);
 }
+struct Button {
+	string text;
+	float x;
+	float y;
+	float width;
+	float height;
+	bool enabled;
+	void click();
+};
+void claco() {
+	cout << "[Information]: Boa,aaa,aaa,aaa,sda,sda,asd" << endl;
+}
+vector<Button> buttons = {
+	{"bloab", 0.f, 0.f, 0.1f, 0.1f, true}
+};
 class World {
 	public:
 	vector<Entity> entities = {{0}};
@@ -671,7 +722,7 @@ class World {
 			for (int y = 0; y < worldHeight; y++) {
 				lightmap[x][y] = {1.f, 1.f, 1.f};
 				tiles[x][y] = bgTiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
-				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.5f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.2f) tiles[x][y] = {ttypes::air};
+				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.25f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.1f) tiles[x][y] = {ttypes::air};
 			}
 		}
 		// tree generation
@@ -848,9 +899,10 @@ class World {
 		e->swingRotation = 0.f;
 		e->isSwinging = true;
 		bool facingRight = e->facingVector.x != -1;
+		particles.push_back({{e->pos.x + (facingRight ? e->size.x / 2.f + 0.5f : e->size.x / -2.f - 0.5f), e->pos.y + e->size.y / 2.f}, {0.f, 0.f}, {facingRight ? 1.f : -1.f, 1.f}, 0.3f, "sweep"});
 		for (int i = (int)e->size.y; i >= 0; i--) {
 			if (getTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i).type != ttypes::air) {
-				damageTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i, 0.3f);
+				damageTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i, e->items[e->itemNumber].damage);
 				break;
 			}
 		}
@@ -863,8 +915,10 @@ class World {
 				e->pos.y + e->size.y / 2.f > entities[i].pos.y - entities[i].size.y / 2.f && 
 				e->pos.y - e->size.y / 2.f < entities[i].pos.y + entities[i].size.y / 2.f
 			) {
-				particles.push_back({{entities[i].pos.x, entities[i].pos.y + entities[i].size.y}, {0.f, 1.f}, 1.f, "damage_heart"});
-				entities[i].health -= 1.f;
+				cout << 3;
+				particles.push_back({{entities[i].pos.x, entities[i].pos.y + entities[i].size.y}, {0.f, 1.f}, {1.f, 1.f}, 1.f, "damage_heart"});
+				cout << 4;
+				entities[i].health -= e->items[e->itemNumber].damage;
 			}
 		}
 	}
@@ -879,6 +933,17 @@ class GameState {
 	float x = 0.f;
 	float playing = true;
 	int youNumber = -1;
+	int wave = 0;
+	float waveTimer = 60.f;
+	void spawnWave() {
+		wave++;
+		for (int i = 0; i < 10; i++) {
+			Entity e = {etypes::sentry};
+			e.pos.x = (float)i * 10.f;
+			e.pos.y = 900.f;
+			world.entities.push_back(e);
+		}
+	}
 	void tick() {
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
@@ -888,6 +953,11 @@ class GameState {
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
 
+		if (waveTimer < 0.f) {
+			waveTimer += 60.f;
+			spawnWave();
+		}
+		waveTimer -= dt;
 
 		if (controls.space) {
 			Entity e = {etypes::sentry};
@@ -900,6 +970,7 @@ class GameState {
 		youNumber = -1;
 		for (int i = 0; i < (int)world.entities.size(); i++) {
 			if (world.entities[i].type == etypes::player) {
+				world.entities[i].health += dt;
 				if (youNumber != -1) youNumber = i;
 				playerIs.push_back(i);
 				if (controls.xPressed) {
@@ -1017,7 +1088,7 @@ class GameState {
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			if (world.entities[i].health <= 0.f) {
-				world.particles.push_back({world.entities[i].pos, {0.f, 1.f}, 2.f, "skull"});
+				world.particles.push_back({world.entities[i].pos, {0.f, 1.f}, {1.f, 1.f}, 2.f, "skull"});
 				world.entities.erase(world.entities.begin() + i);
 			}
 		}
@@ -1044,38 +1115,46 @@ public:
 
 	Shader solidF{"resources/shader/solid.fsh", GL_FRAGMENT_SHADER};
 	Shader guiF{"resources/shader/gui.fsh", GL_FRAGMENT_SHADER};
+	Shader guiGrayscaleF{"resources/shader/gui_grayscale.fsh", GL_FRAGMENT_SHADER};
 	Shader healthBarGreenF{"resources/shader/health_bar_green.fsh", GL_FRAGMENT_SHADER};
 	Shader healthBarBgF{"resources/shader/health_bar_background.fsh", GL_FRAGMENT_SHADER};
 	Shader emptyF{"resources/shader/empty.fsh", GL_FRAGMENT_SHADER};
 
 	vector<Material> materials = {
-		{"sky"				      , solidV.shader , solidF.shader			, "resources/texture/sky.png"}, 
-		{"dirt"					   , solidV.shader, solidF.shader		  , "resources/texture/dirt.png"},
-		{"stone"					   , solidV.shader, solidF.shader		  , "resources/texture/stone.png"},
-		{"wood"					   , solidV.shader, solidF.shader		  , "resources/texture/wood.png"},
-		{"log"					   , solidV.shader, solidF.shader		  , "resources/texture/log.png"},
-		{"leaves"					   , solidV.shader, solidF.shader		  , "resources/texture/leaves.png"},
-		{"grass"					   , solidV.shader, solidF.shader		  , "resources/texture/grass.png"},
-		{"grass_left"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_left.png"},
-		{"grass_right"					   , solidV.shader, solidF.shader		  , "resources/texture/grass_right.png"},
-		{"player"					  , solidV.shader, solidF.shader		  , "resources/texture/player.png"},
-		{"sentry"					  , solidV.shader, solidF.shader		  , "resources/texture/sentry.png"},
-		{"mimic"					  , solidV.shader, solidF.shader		  , "resources/texture/mimic.png"},
-		{"tile_cracks"					   , solidV.shader, solidF.shader		  , "resources/texture/tile_cracks.png"},
-		{"select"					   , solidV.shader, solidF.shader		  , "resources/texture/select.png"},
-		{"skull"					   , solidV.shader, solidF.shader		  , "resources/texture/skull.png"},
-		{"damage_heart"					   , solidV.shader, solidF.shader		  , "resources/texture/damage_heart.png"},
-		{"sword"					   , solidV.shader, solidF.shader		  , "resources/texture/sword.png"},
-		{"items_selected"					   , guiV.shader, guiF.shader		  , "resources/texture/items_selected.png"},
-		{"health_green"					   , guiV.shader, healthBarGreenF.shader		  , "resources/texture/items_selected.png"},
-		{"health_bg"					   , guiV.shader, healthBarBgF.shader		  , "resources/texture/items_selected.png"},
-		{"empty"					   , guiV.shader, emptyF.shader		  , "resources/texture/dirt.png"},
+		{"sky"						, solidV.shader	, solidF.shader			, "resources/texture/sky.png"}, 
+		{"dirt"						, solidV.shader	, solidF.shader			, "resources/texture/dirt.png"},
+		{"stone"					, solidV.shader	, solidF.shader			, "resources/texture/stone.png"},
+		{"wood"						, solidV.shader	, solidF.shader			, "resources/texture/wood.png"},
+		{"log"						, solidV.shader	, solidF.shader			, "resources/texture/log.png"},
+		{"leaves"					, solidV.shader	, solidF.shader			, "resources/texture/leaves.png"},
+		{"grass"					, solidV.shader	, solidF.shader			, "resources/texture/grass.png"},
+		{"grass_left"				, solidV.shader	, solidF.shader			, "resources/texture/grass_left.png"},
+		{"grass_right"				, solidV.shader	, solidF.shader			, "resources/texture/grass_right.png"},
+		{"player"					, solidV.shader	, solidF.shader			, "resources/texture/player.png"},
+		{"sentry"					, solidV.shader	, solidF.shader			, "resources/texture/sentry.png"},
+		{"mimic"					, solidV.shader	, solidF.shader			, "resources/texture/mimic.png"},
+		{"tile_cracks"				, solidV.shader	, solidF.shader			, "resources/texture/tile_cracks.png"},
+		{"select"					, solidV.shader	, solidF.shader			, "resources/texture/select.png"},
+		{"skull"					, solidV.shader	, solidF.shader			, "resources/texture/skull.png"},
+		{"damage_heart"				, solidV.shader	, solidF.shader			, "resources/texture/damage_heart.png"},
+		{"sweep"					, solidV.shader	, solidF.shader			, "resources/texture/sweep.png"},
+		{"sword"					, solidV.shader	, solidF.shader			, "resources/texture/sword.png"},
+		{"excalibur"				, solidV.shader	, solidF.shader			, "resources/texture/excalibur.png"},
+		{"bshorin"					, solidV.shader	, solidF.shader			, "resources/texture/bshorin.png"},
+		{"burger"					, solidV.shader	, solidF.shader			, "resources/texture/burger.png"},
+		{"items_selected"			, guiV.shader	, guiF.shader			, "resources/texture/items_selected.png"},
+		{"health_green"				, guiV.shader	, healthBarGreenF.shader, "resources/texture/items_selected.png"},
+		{"health_bg"				, guiV.shader	, healthBarBgF.shader	, "resources/texture/items_selected.png"},
+		{"button"					, guiV.shader	, guiF.shader			, "resources/texture/button.png"},
+		{"button_disabled"			, guiV.shader	, guiGrayscaleF.shader	, "resources/texture/button.png"},
+		{"sentry_apocalypse"		, guiV.shader	, guiF.shader			, "resources/texture/sentry_apocalypse.png"},
+		{"empty"					, guiV.shader	, emptyF.shader			, "resources/texture/dirt.png"},
 
 		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
 	};
 
 	vector<Vertex> vertices = {};
-	vector<vector<unsigned int>> indiceses = {};
+	vector<vector<unsigned int>> materialIndices = {};
 
 	int getMatID(string name) {
 		int size = (int)materials.size();
@@ -1089,7 +1168,7 @@ public:
 		
 		// create index buffers
 		for (int i = 0; i < (int)materials.size(); i++) {
-			indiceses.push_back({});
+			materialIndices.push_back({});
 		}
 
 		// vertex buffer
@@ -1125,11 +1204,11 @@ public:
 			Entity* e = &game->world.entities[i];
 			int fvx = game->world.entities[i].facingVector.x;
 			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
-			float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.2f) : (e->pos.x + e->size.x / 2.f + 0.1f);
-			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->items[e->itemNumber].size.x, e->items[e->itemNumber].size.y, getMatID(e->items[e->itemNumber].material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
+			float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.1f) : (e->pos.x + e->size.x / 2.f + 0.1f);
+			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->items[e->itemNumber].size.x * (fvx == -1 ? -1.f : 1.f), e->items[e->itemNumber].size.y, getMatID(e->items[e->itemNumber].material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
-			addRect(game->world.particles[i].pos.x - 0.5f, game->world.particles[i].pos.y - 0.5f, 0.004f, 1.f, 1.f, getMatID(game->world.particles[i].material));
+			addRect(game->world.particles[i].pos.x - game->world.particles[i].size.x / 2.f, game->world.particles[i].pos.y - game->world.particles[i].size.y / 2.f, 0.004f, game->world.particles[i].size.x, game->world.particles[i].size.y, getMatID(game->world.particles[i].material));
 		}
 
 		for (int i = 0; i < (int)game->world.entities[0].items.size(); i++) {
@@ -1138,14 +1217,22 @@ public:
 		addScreenRect(-0.5f, 0.9f, -0.11f, game->world.entities[0].health / game->world.entities[0].maxHealth, 0.1f, getMatID("health_green"));
 		addScreenRect(-0.5f, 0.9f, -0.105f, 1.f, 0.1f, getMatID("health_bg"));
 		addScreenRect((float)game->world.entities[0].itemNumber * 0.1f - 0.5f, -1.f, -0.11f, 0.1f, 0.1f, getMatID("items_selected"));
+
+		for (int i = 0; i < (int)buttons.size(); i++) {
+			addScreenRect(buttons[i].x, buttons[i].y, -0.11f, buttons[i].width, buttons[i].height, getMatID(buttons[i].enabled ? "button" : "button_disabled"));
+			addText(buttons[i].text, buttons[i].x, buttons[i].y + buttons[i].height / 2.f - 0.01f, -0.12f, 0.02f, 0.8f, buttons[i].width, false);
+		}
+
 		addText("fps: " + to_string(fps), -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		int tris = 0;
-		for (int i = 0; i < (int)indiceses.size(); i++) {
-			tris += (int)indiceses[i].size() / 3;
+		for (int i = 0; i < (int)materialIndices.size(); i++) {
+			tris += (int)materialIndices[i].size() / 3;
 		}
 		addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		addText("photons: " + to_string(game->world.photons.size()), -0.9f, -0.05f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		addText("block size: " + to_string((long long)((float)height / game->world.camera.zoom / 2.f)) + "px", -0.9f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText("wave " + to_string(game->wave), -0.1f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		if (game->waveTimer > 57.f) addScreenRect(-0.5f, -0.5f, -0.11f, 1.f, 1.f, getMatID("sentry_apocalypse"));
 	}
 	void renderMaterials() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1153,7 +1240,7 @@ public:
 		buildThem();
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertices[0]), &vertices[0], GL_STATIC_DRAW);
 		for (int i = 0; i < (int)materials.size(); i++) {
-			if ((int)indiceses[i].size() > 0) renderMaterial(i);
+			if ((int)materialIndices[i].size() > 0) renderMaterial(i);
 		}
 
 	}
@@ -1175,7 +1262,7 @@ public:
 		float ratio = (float)width / (float)height;
 		mat4x4 m, p, mvp;
 
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, indiceses[id].size() * sizeof(unsigned int), &indiceses[id][0], GL_STATIC_DRAW);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, materialIndices[id].size() * sizeof(unsigned int), &materialIndices[id][0], GL_STATIC_DRAW);
 		
 		glBindTexture(GL_TEXTURE_2D, materials[id].texture);
 
@@ -1194,20 +1281,20 @@ public:
 		glUniform1i(materials[id].texture1_location, 0);
 		glUniform1f(materials[id].time_location, game->world.time);
 		glUniformMatrix4fv(materials[id].mvp_location, 1, GL_FALSE, (const GLfloat*)mvp);
-		glDrawElements(GL_TRIANGLES, indiceses[id].size(), GL_UNSIGNED_INT, (void*)0);
+		glDrawElements(GL_TRIANGLES, materialIndices[id].size(), GL_UNSIGNED_INT, (void*)0);
 	}
 private:
 	void clearVertices() {
 		vertices.clear();
-		for (int i = 0; i < (int)indiceses.size(); i++) {
-			indiceses[i].clear();
+		for (int i = 0; i < (int)materialIndices.size(); i++) {
+			materialIndices[i].clear();
 		}
 	}
 
 	void addRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
 		unsigned int end = vertices.size();
-		indiceses[matId].insert(indiceses[matId].end(), {
+		materialIndices[matId].insert(materialIndices[matId].end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1220,7 +1307,7 @@ private:
 	}
 	void addScreenRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		unsigned int end = vertices.size();
-		indiceses[matId].insert(indiceses[matId].end(), {
+		materialIndices[matId].insert(materialIndices[matId].end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1234,7 +1321,7 @@ private:
 	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB) {
 		if (x + w < game->world.camera.left() + z || x > game->world.camera.right() - z || y + h < game->world.camera.bottom() + z || y > game->world.camera.top() - z) return;
 		unsigned int end = vertices.size();
-		indiceses[matId].insert(indiceses[matId].end(), {
+		materialIndices[matId].insert(materialIndices[matId].end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1281,7 +1368,7 @@ private:
 	void addRotatedRect(float x, float y, float z, float w, float h, int matId, float theta, float originX, float originY) {
 		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
 		unsigned int end = vertices.size();
-		indiceses[matId].insert(indiceses[matId].end(), {
+		materialIndices[matId].insert(materialIndices[matId].end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1307,7 +1394,7 @@ private:
 	void addCharacter(char character, float x, float y, float z, float w) {
 		Vec2 uv = getCharacterCoords(character);
 		unsigned int end = vertices.size();
-		indiceses[getMatID("gui_font")].insert(indiceses[getMatID("gui_font")].end(), {
+		materialIndices[getMatID("gui_font")].insert(materialIndices[getMatID("gui_font")].end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1378,6 +1465,11 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		//getting cursor position
 		glfwGetCursorPos(window, &xpos, &ypos);
 		controls.mouseDown = true;
+		for (int i = 0; i < (int)buttons.size(); i++) {
+			if (buttons[i].enabled && controls.clipMouse.x > buttons[i].x && controls.clipMouse.x < buttons[i].x + buttons[i].width && controls.clipMouse.y > buttons[i].y && controls.clipMouse.y < buttons[i].y + buttons[i].height) {
+				claco();
+			}
+		}
 	}
 	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
 		double xpos, ypos;
