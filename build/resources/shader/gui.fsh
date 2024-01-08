@@ -12,5 +12,6 @@ uniform float time;
 
 void main() {
 	vec4 color = texture2D(texture1, texCoord);
+	if (color.a == 0.) discard;
 	FragColor = color;
 }
