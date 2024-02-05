@@ -20,7 +20,6 @@
 #include <filesystem>
 #include <random>
 #include <cstdlib>
-#include <ctime>
 
 #define PI 3.1415926535897932384626433832795028841971693993751058
 
@@ -101,7 +100,7 @@ int convertFileToOpenALFormat(AudioFile<float>* audioFile) {
 	} else if (bitDepth == 8) {
 		return audioFile->isStereo() ? AL_FORMAT_STEREO8 : AL_FORMAT_MONO8;
 	} else {
-		cerr << "ERROR: bad bit depth for audio file" << endl;
+		cerr << "[ERROR] bad bit depth for audio file" << endl;
 		return -1;
 	}
 };
@@ -116,7 +115,7 @@ class SoundDoerSound {
 		isLooping = looping;
 		volume = vlaume;
 		if (!monoSoundFile.load(path)) {
-			cerr << "ERROR: failed to load brain sound \"" << path << "\"" << endl;
+			cerr << "[ERROR] failed to load brain sound \"" << path << "\"" << endl;
 		}
 		monoSoundFile.writePCMToBuffer(monoPCMDataBytes);
 	}
@@ -150,14 +149,14 @@ class SoundDoer {
 		const ALCchar* defaultDeviceString = alcGetString(nullptr, ALC_DEFAULT_DEVICE_SPECIFIER);
 		device = alcOpenDevice(defaultDeviceString);
 		if (!device) {
-			cerr << "ERROR: failed loading default sound device" << endl;
+			cerr << "[ERROR] failed loading default sound device" << endl;
 		}
-		cout << "INFO: openal device name: " << alcGetString(device, ALC_DEVICE_SPECIFIER) << endl;
+		cout << "[INFO] openal device name: " << alcGetString(device, ALC_DEVICE_SPECIFIER) << endl;
 
 		context = alcCreateContext(device, nullptr);
 
 		if (!alcMakeContextCurrent(context)) {
-			cerr << "ERROR: failed to make openal context current" << endl;
+			cerr << "[ERROR] failed to make openal context current" << endl;
 		}
 		alListener3f(AL_POSITION, 0.f, 0.f, 0.f);
 		alListener3f(AL_VELOCITY, 0.f, 0.f, 0.f);
@@ -371,7 +370,7 @@ string getFileText(string path) {
 	ifstream file{path};
 	if (!file.is_open()) {
 		return "";
-		cerr << "ERROR: file \"" << path << "\" not found" << endl;
+		cerr << "[ERROR] file \"" << path << "\" not found" << endl;
 		file.close();
 	}
 	string text = "";
@@ -406,11 +405,11 @@ class Shader {
 		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
 		glGetShaderInfoLog(shader, 512, NULL, infoLog);
 		if (infoLogLength > 0) {
-			cerr << "ERROR: " << infoLog << endl;
+			cerr << "[ERROR] " << infoLog << endl;
 		}
 		if (!success){
 			glDeleteShader(shader);
-		} else cout << "INFO: Successfuly loaded " << (shaderType == GL_VERTEX_SHADER ? "vertex shader" : "fragment shader") << " \"" << fileName << "\"" << endl;
+		} else cout << "[INFO] Loaded " << (shaderType == GL_VERTEX_SHADER ? "vertex shader" : "fragment shader") << " \"" << fileName << "\"" << endl;
 	}
 };
 class Material {
@@ -438,9 +437,9 @@ class Material {
 			if (textureBytes) {
 				glTexImage2D(GL_TEXTURE_2D, 0, textureColorChannels == 4 ? GL_RGBA : GL_RGB, textureWidth, textureHeight, 0, textureColorChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, textureBytes);
 				glGenerateMipmap(GL_TEXTURE_2D);
-				cout << "INFO: successfully loaded texture file \"" << textureFile << "\"" << endl;
+				cout << "[INFO] Loaded texture \"" << textureFile << "\"" << endl;
 			} else {
-				cerr << "ERROR: failed to load texture file \"" << textureFile << "\"" << endl;
+				cerr << "[ERROR] Failed loading texture \"" << textureFile << "\"" << endl;
 			};
 			stbi_image_free(textureBytes);
 
@@ -462,7 +461,7 @@ class Material {
 int newEntityID = 0;
 namespace itypes {
 	enum itypes {
-		none, sword, bshorin, excalibur, burger, lantern
+		none, sword, bshorin, excalibur, burger, lantern, pickaxe
 	};
 }
 class Item {
@@ -507,7 +506,7 @@ class Item {
 			break;
 
 			case itypes::excalibur:
-			durability = 61230.f;
+			durability = 100.f;
 			damage = 1000.f;
 			material = "excalibur";
 			size = {1.f, 1.5f};
@@ -533,6 +532,14 @@ class Item {
 			punchDelay = 1.f;
 			emission = {0.3f, 0.15f, 0.15f};
 			break;
+
+			case itypes::pickaxe:
+			durability = 250.f;
+			damage = 20.f;
+			material = "pickaxe";
+			size = {1.f, 1.f};
+			punchDelay = 1.25f;
+			break;
 		}
 		maxDurability = durability;
 	}
@@ -544,7 +551,7 @@ namespace etypes {
 }
 class Entity {
 public:
-	Vec2 pos = {20.f, 750.f};
+	Vec2 pos = {20.f, 1000.f};
 	Vec2 size = {0.5f, 1.8f};
 	Vec2 vel = {0.f, 0.f};
 	int id = newEntityID++;
@@ -563,7 +570,6 @@ public:
 	float isSwinging = false;
 	
 	Entity(int typea) {
-		cout << id << endl;
 		type = typea;
 		for (int i = 0; i < 8; i++) {
 			items.push_back({i == 0 ? itypes::sword : itypes::none});
@@ -572,6 +578,7 @@ public:
 		items[2] = {itypes::excalibur};
 		items[3] = {itypes::burger};
 		items[4] = {itypes::lantern};
+		items[5] = {itypes::pickaxe};
 		switch (type) {
 			case etypes::player:
 				material = "player";
@@ -597,6 +604,7 @@ public:
 };
 struct EntityCollision {
 	bool collided;
+	vector<iVec2> tileCollisions;
 	bool isEntityCollision;
 	Entity* entity1;
 	Entity* entity2;
@@ -616,47 +624,47 @@ class Tile {
 	Tile(int atype) {
 		type = atype;
 		switch (type) {
-			case (ttypes::air):
+			case ttypes::air:
 				health = 43289.f;
 				friction = 0.f;
 				isSolid = false;
 				break;
-			case (ttypes::dirt):
+			case ttypes::dirt:
 				health = 3.f;
 				friction = 0.25f;
 				isSolid = true;
 				break;
-			case (ttypes::stone):
+			case ttypes::stone:
 				health = 60.f;
 				friction = 0.5f;
 				isSolid = true;
 				break;
-			case (ttypes::wood):
+			case ttypes::wood:
 				health = 7.f;
 				friction = 0.3f;
 				isSolid = true;
 				break;
-			case (ttypes::log):
+			case ttypes::log:
 				health = 10.f;
 				friction = 0.75f;
 				isSolid = true;
 				break;
-			case (ttypes::leaves):
+			case ttypes::leaves:
 				health = 0.5f;
 				friction = 0.1f;
 				isSolid = true;
 				break;
-			case (ttypes::sentry_shack_bottom):
+			case ttypes::sentry_shack_bottom:
 				health = 13.f;
 				friction = 0.1f;
 				isSolid = false;
 				break;
-			case (ttypes::sentry_shack_middle):
+			case ttypes::sentry_shack_middle:
 				health = 13.f;
 				friction = 0.1f;
 				isSolid = false;
 				break;
-			case (ttypes::sentry_shack_top):
+			case ttypes::sentry_shack_top:
 				health = 13.f;
 				friction = 0.1f;
 				isSolid = false;
@@ -678,11 +686,13 @@ class PerlinGenerator {
 			}
 		}
 		float getVal(float x) {
-			float t = x - floor(x);
-			float tRemapSmoothstep = powf(t, 2.f) * (3.f - 2.f * t);
 			int xMin = (int)x & (MAX_VERTICES - 1);
 			int xMax = (xMin + 1) & (MAX_VERTICES - 1);
-			return lerp(r[xMin], r[xMax], tRemapSmoothstep);
+			return lerp(r[xMin], r[xMax], smoothstep(x - floor(x)));
+		}
+	private:
+		float smoothstep(float x) {
+			return x * x * (3.f - 2.f * x);
 		}
 };
 class Particle {
@@ -728,8 +738,8 @@ class World {
 	vector<Entity> entities = {{0}};
 	vector<Particle> particles = {};
 	Camera camera;
-	const static int worldWidth = 5000;
-	const static int worldHeight = 1000;
+	static const int worldWidth = 5000;
+	static const int worldHeight = 1000;
 
 	const siv::PerlinNoise::seed_type seed = 123456u;
 	const siv::PerlinNoise perlin{ seed };
@@ -743,19 +753,20 @@ class World {
 	int lightmapN[worldWidth][worldHeight];
 	vector<Photon> photons = {};
 
-	PerlinGenerator gen;
+	static const int octaves = 10;
+	PerlinGenerator gen[octaves];
 	float time = 0.f;
 	float getGeneratorHeight(float x) {
 		float height = 0.f;
 		float scale = 100.f;
-		for (int i = 0; i < 7; i++) {
+		for (int i = 0; i < octaves; i++) {
 			float it = powf(2.f, (float)i);
-			height += gen.getVal(x / scale * it) / it * scale;
+			height += gen[i].getVal(x / scale * it) / it * scale;
 		}
-		return height + 700.f;
+		return height;
 	}
 	World() {
-		// level generation generate generator generating generated generates generatings generations generational generationality generationalities
+		// level generation generate generator generators generating generated generates generatings generations generational generationality generationalities
 		for (int x = 0; x < worldWidth; x++) {
 			float height = getGeneratorHeight(x);
 			for (int y = 0; y < worldHeight; y++) {
@@ -767,33 +778,32 @@ class World {
 		// tree n sentry shack generation
 		for (int x = 2; x < worldWidth - 2; x++) {
 			for (int y = worldHeight - 1 - 10; y >= 1; y--) {
+				if (tiles[x][y].type == ttypes::air && tiles[x][y - 1].type != ttypes::air && randFloat() < 0.005f) {
+					tiles[x][y] = {ttypes::sentry_shack_bottom};
+					tiles[x][y + 1] = {ttypes::sentry_shack_middle};
+					tiles[x][y + 2] = {ttypes::sentry_shack_top};
+				}
 				if (tiles[x][y].type == ttypes::air && tiles[x][y - 1].type == ttypes::dirt && randFloat() < 0.05f) {
-					if (randFloat() < 0.5f) {
-						tiles[x][y] = {ttypes::log};
-						tiles[x][y + 1] = {ttypes::log};
-						tiles[x][y + 2] = {ttypes::log};
-						tiles[x][y + 3] = {ttypes::log};
-						tiles[x][y + 4] = {ttypes::log};
-						tiles[x][y + 5] = {ttypes::log};
-						tiles[x][y + 6] = {ttypes::leaves};
-						tiles[x][y + 7] = {ttypes::leaves};
-						tiles[x][y + 8] = {ttypes::leaves};
-						tiles[x - 1][y + 6] = {ttypes::leaves};
-						tiles[x - 1][y + 7] = {ttypes::leaves};
-						tiles[x - 1][y + 8] = {ttypes::leaves};
-						tiles[x + 1][y + 6] = {ttypes::leaves};
-						tiles[x + 1][y + 7] = {ttypes::leaves};
-						tiles[x + 1][y + 8] = {ttypes::leaves};
-						
-						tiles[x - 2][y + 6] = {ttypes::leaves};
-						tiles[x - 2][y + 7] = {ttypes::leaves};
-						tiles[x + 2][y + 6] = {ttypes::leaves};
-						tiles[x + 2][y + 7] = {ttypes::leaves};
-					} else {
-						tiles[x][y] = {ttypes::sentry_shack_bottom};
-						tiles[x][y + 1] = {ttypes::sentry_shack_middle};
-						tiles[x][y + 2] = {ttypes::sentry_shack_top};
-					}
+					tiles[x][y] = {ttypes::log};
+					tiles[x][y + 1] = {ttypes::log};
+					tiles[x][y + 2] = {ttypes::log};
+					tiles[x][y + 3] = {ttypes::log};
+					tiles[x][y + 4] = {ttypes::log};
+					tiles[x][y + 5] = {ttypes::log};
+					tiles[x][y + 6] = {ttypes::leaves};
+					tiles[x][y + 7] = {ttypes::leaves};
+					tiles[x][y + 8] = {ttypes::leaves};
+					tiles[x - 1][y + 6] = {ttypes::leaves};
+					tiles[x - 1][y + 7] = {ttypes::leaves};
+					tiles[x - 1][y + 8] = {ttypes::leaves};
+					tiles[x + 1][y + 6] = {ttypes::leaves};
+					tiles[x + 1][y + 7] = {ttypes::leaves};
+					tiles[x + 1][y + 8] = {ttypes::leaves};
+					
+					tiles[x - 2][y + 6] = {ttypes::leaves};
+					tiles[x - 2][y + 7] = {ttypes::leaves};
+					tiles[x + 2][y + 6] = {ttypes::leaves};
+					tiles[x + 2][y + 7] = {ttypes::leaves};
 				}
 			}
 		}
@@ -922,8 +932,7 @@ class World {
 		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return;
 		tiles[x][y].health -= amount;
 		if (tiles[x][y].health <= 0.f) {
-			tiles[x][y].type = ttypes::air;
-			tiles[x][y].health = 43289.f;
+			tiles[x][y] = {ttypes::air};
 		}
 	}
 	bool areTwoEntitiesCollidingWithEachother(Entity* e1, Entity* e2) {
@@ -931,23 +940,31 @@ class World {
 		return e1->pos.x + e1->size.x / 2.f > e2->pos.x - e2->size.x / 2.f && e1->pos.x - e1->size.x / 2.f < e2->pos.x + e2->size.x / 2.f && e1->pos.y + e1->size.y > e2->pos.y && e1->pos.y < e2->pos.y + e2->size.y;
 	}
 	EntityCollision getEntityCollision(Entity* e) {
-		if (getTile((int)(e->pos.x - e->size.x / 2.f), (int)e->pos.y).isSolid || getTile((int)(e->pos.x + e->size.x / 2.f), (int)e->pos.y).isSolid || getTile((int)(e->pos.x - e->size.x / 2.f), (int)(e->pos.y + e->size.y)).isSolid || getTile((int)(e->pos.x + e->size.x / 2.f), (int)(e->pos.y + e->size.y)).isSolid) return {true, false, e, nullptr};
-		for (int i = 0; i < (int)entities.size(); i++) {
-			if (entities[i].id == e->id) continue;
-			if (areTwoEntitiesCollidingWithEachother(e, &entities[i])) return {true, true, e, &entities[i]};
+		vector<iVec2> tileCollisions;
+		bool collided = false;
+		for (int x = (int)(e->pos.x - e->size.x / 2.f); x < (int)ceil(e->pos.x + e->size.x / 2.f); x++) {
+			for (int y = (int)e->pos.y; y < (int)ceil(e->pos.y + e->size.y); y++) {
+				if (getTile(x, y).isSolid) {
+					tileCollisions.push_back({x, y});
+					collided = true;
+				}
+			}
 		}
-		return {false, false, e, nullptr};
+		if (collided) return {true, tileCollisions, false, e, nullptr};
+		/*for (int i = 0; i < (int)entities.size(); i++) {
+			if (entities[i].id == e->id) continue;
+			if (areTwoEntitiesCollidingWithEachother(e, &entities[i])) return {true, {}, true, e, &entities[i]};
+		}*/
+		return {false, {}, false, e, nullptr};
 	}
 	void makeEntityPunch(Entity* e) {
 		if (e->punchDelayTimer > 0.f) return;
-cout << "punching intity info--- id: " << e->id << ", type" << e->type << endl;
+		// cout << "punching intity info--- id: " << e->id << ", type" << e->type << endl;
 		for (int i = 0; i < (int)entities.size(); i++) {
 			if (entities[i].id == e->id) {
-				cout << "entity index: " << i << endl;
 				break;
 			}
 		}
-		cout << "item number: " << e->itemNumber << endl;
 		e->punchDelayTimer = e->items[e->itemNumber].punchDelay;
 		e->swingRotation = 0.f;
 		e->isSwinging = true;
@@ -984,17 +1001,6 @@ class GameState {
 	float x = 0.f;
 	float playing = true;
 	int youNumber = -1;
-	int wave = 0;
-	float waveTimer = 60.f;
-	void spawnWave() {
-		wave++;
-		for (int i = 0; i < 10; i++) {
-			Entity e = {etypes::sentry};
-			e.pos.x = (float)i * 10.f;
-			e.pos.y = 900.f;
-			world.entities.push_back(e);
-		}
-	}
 	void tick() {
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
@@ -1003,12 +1009,6 @@ class GameState {
 		controls.worldMouse.y = controls.clipMouse.y * world.camera.zoom + world.camera.pos.y;
 		// Physics Tracing Extreme
 		float gravity = -9.807f;
-
-		if (waveTimer < 0.f) {
-			waveTimer += 60.f;
-			spawnWave();
-		}
-		waveTimer -= dt;
 
 		if (controls.space) {
 			Entity e = {etypes::sentry};
@@ -1054,7 +1054,7 @@ class GameState {
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			Entity* e = &world.entities[i];
-			if (randFloat() < 0.002f && e->type != 0) {
+			if (randFloat() < 0.0002f && e->type != 0) {
 				Entity latest = {e->type};
 				latest.pos.x = e->pos.x;
 				latest.pos.y = e->pos.y + e->size.y + 0.1f;
@@ -1087,7 +1087,7 @@ class GameState {
 					controlsUp = true;
 					controlsLeft = (world.entities[playerIs[nearestPlayerI]].pos.x < e->pos.x);
 					controlsRight = (world.entities[playerIs[nearestPlayerI]].pos.x > e->pos.x);
-					cout << "them: " << i << ", " << world.entities.size() << endl;
+					//cout << "them: " << i << ", " << world.entities.size() << endl;
 					world.makeEntityPunch(e);
 				}
 			}
@@ -1120,16 +1120,17 @@ class GameState {
 			if (netMovement != 0.f) {
 				e->facingVector = {(int)netMovement, 0};
 			}
-			
 			e->vel.x = lerpd(e->vel.x, netMovement * (controls.shift ? 6.f : e->speed), friction, dt);
-			e->pos.x += e->vel.x * dt;
 
-			// Collisions
+			//x collision
+			e->pos.x += e->vel.x * dt;
 			EntityCollision collision = world.getEntityCollision(e);
 			if (collision.collided) {
 				e->pos.x -= e->vel.x * dt;
 				e->vel.x = 0.f;
 			}
+			
+			//y collision n stuff
 			e->pos.y += e->vel.y * dt;
 			e->onGround = false;
 			collision = world.getEntityCollision(e);
@@ -1139,6 +1140,21 @@ class GameState {
 				e->vel.y = 0.f;
 				if (controlsUp && e->onGround) {
 					e->vel.y = 6.f;
+				}
+			}
+			if (e->type == etypes::player) {
+				for (int x = (int)(e->pos.x - e->size.x / 2.f); x < (int)ceil(e->pos.x + e->size.x / 2.f); x++) {
+					for (int y = (int)e->pos.y; y < (int)ceil(e->pos.y + e->size.y); y++) {
+						if (world.getTile(x, y).type == ttypes::sentry_shack_middle) {
+							world.setTile(x, y - 1, {ttypes::air});
+							world.setTile(x, y, {ttypes::air});
+							world.setTile(x, y + 1, {ttypes::air});
+							Entity e = {etypes::sentry};
+							e.pos.x = x;
+							e.pos.y = y;
+							world.entities.push_back(e);
+						}
+					}
 				}
 			}
 		}
@@ -1191,6 +1207,7 @@ public:
 
 	vector<Material> materials = {
 		{"sky"						, solidV.shader	, solidF.shader			, "resources/texture/sky.png"}, 
+		{"hills"					, solidV.shader	, solidF.shader			, "resources/texture/hills.png"}, 
 		{"dirt"						, solidV.shader	, solidF.shader			, "resources/texture/dirt.png"},
 		{"stone"					, solidV.shader	, solidF.shader			, "resources/texture/stone.png"},
 		{"wood"						, solidV.shader	, solidF.shader			, "resources/texture/wood.png"},
@@ -1217,18 +1234,20 @@ public:
 		{"bshorin"					, solidV.shader	, solidF.shader			, "resources/texture/bshorin.png"},
 		{"burger"					, solidV.shader	, solidF.shader			, "resources/texture/burger.png"},
 		{"lantern"					, solidV.shader	, solidF.shader			, "resources/texture/lantern.png"},
+		{"pickaxe"					, solidV.shader	, solidF.shader			, "resources/texture/pickaxe.png"},
 		{"gui_sword"				, guiV.shader	, guiF.shader			, "resources/texture/sword.png"},
 		{"gui_excalibur"			, guiV.shader	, guiF.shader			, "resources/texture/excalibur.png"},
 		{"gui_bshorin"				, guiV.shader	, guiF.shader			, "resources/texture/bshorin.png"},
 		{"gui_burger"				, guiV.shader	, guiF.shader			, "resources/texture/burger.png"},
 		{"gui_lantern"				, guiV.shader	, guiF.shader			, "resources/texture/lantern.png"},
+		{"gui_pickaxe"				, guiV.shader	, guiF.shader			, "resources/texture/pickaxe.png"},
 
+		{"items_slot"				, guiV.shader	, guiF.shader			, "resources/texture/items_slot.png"},
 		{"items_selected"			, guiV.shader	, guiF.shader			, "resources/texture/items_selected.png"},
 		{"health_green"				, guiV.shader	, healthBarGreenF.shader, "resources/texture/items_selected.png"},
 		{"health_bg"				, guiV.shader	, healthBarBgF.shader	, "resources/texture/items_selected.png"},
 		{"button"					, guiV.shader	, guiF.shader			, "resources/texture/button.png"},
 		{"button_disabled"			, guiV.shader	, guiGrayscaleF.shader	, "resources/texture/button.png"},
-		{"sentry_apocalypse"		, guiV.shader	, guiF.shader			, "resources/texture/sentry_apocalypse.png"},
 		{"empty"					, solidV.shader	, emptyF.shader			, "resources/texture/dirt.png"},
 		{"gui_empty"				, guiV.shader	, emptyF.shader			, "resources/texture/dirt.png"},
 
@@ -1264,7 +1283,9 @@ public:
 	void buildThem() {
 		aspect = (float)width / (float)height;
 		clearVertices();
-		//DELETE SKY cas plockaddRect(-20000.f, -10000.f, -10000.f, 40000.f, 20000.f, getMatID("sky"));
+		for (int x = 0; x < 100; x++) {
+			addRect((float)x * 150.f, 0.f, -10.f, 150.f, 30.f, getMatID("hills"));
+		}
 		for (int x = 0; x < game->world.worldWidth; x++) {
 			if ((float)x + 1.f < game->world.camera.left() - 2.f) continue;
 			if ((float)x > game->world.camera.right() + 2.f) break;
@@ -1315,8 +1336,6 @@ public:
 		//addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		//addText("photons: " + to_string(game->world.photons.size()), -0.9f, -0.05f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		//addText("block size: " + to_string((long long)((float)height / game->world.camera.zoom / 2.f)) + "px", -0.9f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
-		addText("wave " + to_string(game->wave), -0.1f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
-		if (game->waveTimer > 57.f) addScreenRect(-0.5f, -0.5f, -0.11f, 1.f, 1.f, getMatID("sentry_apocalypse"));
 	}
 	void renderMaterials() {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -1421,7 +1440,7 @@ private:
 			case ttypes::air:
 			//addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
 			break;
-			case 1:
+			case ttypes::dirt:
 			if ((isBackground ? game->world.getBgTile(x, y + 1) : game->world.getTile(x, y + 1)).type == ttypes::air) {
 				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB);
 			} else {
@@ -1435,17 +1454,26 @@ private:
 				}
 			}*/
 			break;
-			case 2:
+			case ttypes::stone:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB);
 			break;
-			case 3:
+			case ttypes::wood:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("wood"), 1.f, lightR, lightG, lightB);
 			break;
-			case 4:
+			case ttypes::log:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("log"), 1.f, lightR, lightG, lightB);
 			break;
-			case 5:
+			case ttypes::leaves:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("leaves"), 1.f, lightR, lightG, lightB);
+			break;
+			case ttypes::sentry_shack_bottom:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_bottom"), 1.f, lightR, lightG, lightB);
+			break;
+			case ttypes::sentry_shack_middle:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_middle"), 1.f, lightR, lightG, lightB);
+			break;
+			case ttypes::sentry_shack_top:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_top"), 1.f, lightR, lightG, lightB);
 			break;
 		}
 	}
@@ -1580,7 +1608,7 @@ static void iconify_callback(GLFWwindow* window, int iconified) {
 	windowIconified = (iconified == GLFW_TRUE) ? true : false;
 }
 static void error_callback(int error, const char* description) {
-	fprintf(stderr, "ERROR: %s\n", description);
+	fprintf(stderr, "[ERROR] %s\n", description);
 }
 
 int main(void) {
