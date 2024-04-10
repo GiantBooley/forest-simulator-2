@@ -6,6 +6,8 @@
         "ratio": "cpp",
         "iostream": "cpp",
         "ostream": "cpp",
-        "numbers": "cpp"
+        "numbers": "cpp",
+        "type_traits": "cpp",
+        "string_view": "cpp"
     }
 }

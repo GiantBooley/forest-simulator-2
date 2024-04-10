@@ -16,7 +16,7 @@ vec3 lerp(vec3 a, vec3 b, float t) {
 void main() {
 	vec4 color = texture2D(texture1, texCoord);
 	if (color.a == 0.) discard;
-	color.rgb = lerp(color.rgb, vec3(0.25, 0.25, 0.25), pos.z / -3.);
+	color.rgb = lerp(color.rgb, vec3(0.75, 0.75, 0.75), clamp(1. - pow(0.95, max(-pos.z, 0.)), 0., 1.));
 	color.rgb *= lightColor;
 	FragColor = color;
 }

@@ -29,21 +29,26 @@ bool debug = false;
 
 GLFWwindow* window;
 bool windowIconified = false;
-
-struct Vertex {
-	float x, y, z;
-	float u, v;
-	float tileHealth;
-	float lr, lg, lb;
-};
-
+unsigned int seed = 23456743;
+unsigned int nextRandom(void) {
+	unsigned int z = (seed += 0x9E3779B9u);
+	z ^= z >> 16;
+	z *= 0x21f0aaadu;
+	z ^= z >> 15;
+	z *= 0x735a2d97u;
+	z ^= z >> 15;
+	return z;
+}
 float randFloat() {
-	return static_cast<float> (rand()) / static_cast<float> (RAND_MAX);
+	return static_cast<float>(nextRandom()) / static_cast<float>(0xFFFFFFFF);
 }
 float lerp(float a, float b, float t) {
 	return (b - a) * t + a;
 }
 
+int mod(int a, int b) {
+    return (b + (a % b)) % b;
+}
 // jeffrey thombpson blog line rect intsersection
 bool lineLine(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4) {
 
@@ -51,7 +56,7 @@ bool lineLine(float x1, float y1, float x2, float y2, float x3, float y3, float 
   float uA = ((x4-x3)*(y1-y3) - (y4-y3)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
   float uB = ((x2-x1)*(y1-y3) - (y2-y1)*(x1-x3)) / ((y4-y3)*(x2-x1) - (x4-x3)*(y2-y1));
 
-  // if uA and uB are between 0-1, lines are colliding
+  // fi ua nad ub aqe betwen 0d1 linxes aee coliding
   if (uA >= 0 && uA <= 1 && uB >= 0 && uB <= 1) {
     //float intersectionX = x1 + (uA * (x2-x1));
     //float intersectionY = y1 + (uA * (y2-y1));
@@ -169,10 +174,10 @@ class SoundDoer {
 	void tickSounds() {
 		for (int i = (int)buffers.size() - 1; i >= 0; i--) {
 			ALint sourceState;
-			alGetSourcei(buffers[i].monoSource, AL_SOURCE_STATE, &sourceState);
+			alGetSourcei(buffers.at(i).monoSource, AL_SOURCE_STATE, &sourceState);
 			if (sourceState != AL_PLAYING) {
-				alDeleteSources(1, &buffers[i].monoSource);
-				alDeleteBuffers(1, &buffers[i].monoSoundBuffer);
+				alDeleteSources(1, &buffers.at(i).monoSource);
+				alDeleteBuffers(1, &buffers.at(i).monoSoundBuffer);
 				buffers.erase(buffers.begin() + i);
 			}
 		}
@@ -180,7 +185,7 @@ class SoundDoer {
 	void play(SoundDoerSound sound) {
 		if (buffers.size() < 1000) {
 			buffers.push_back({sound});
-			alSourcePlay(buffers[(int)buffers.size() - 1].monoSource);
+			alSourcePlay(buffers.at((int)buffers.size() - 1).monoSource);
 		}
 	}
 	void exit() {
@@ -197,6 +202,7 @@ class Controls {
 	   bool a = false;
 	   bool s = false;
 	   bool d = false;
+	   bool f = false;
 	   bool left = false;
 	   bool right = false;
 	   bool up = false;
@@ -215,12 +221,21 @@ int width, height;
 class Camera {
 public:
 	Vec2 pos{0.f, 0.f};
-	float zoom = 13.f;
+	float zoomTarget = 7.f;
+	float zoom = zoomTarget;
 	
-	float left() {return pos.x - 2.f * zoom;}
-	float right() {return pos.x + 2.f * zoom;}
-	float bottom() {return pos.y - 2.f * zoom * ((float)height / (float)width);}
-	float top() {return pos.y + 2.f * zoom * ((float)height / (float)width);}
+	float left(float z) {
+		return pos.x - 2.f * (zoom - z);
+	}
+	float right(float z) {
+		return pos.x + 2.f * (zoom - z);
+	}
+	float bottom(float z) {
+		return pos.y - 2.f * (zoom - z) * ((float)height / (float)width);
+	}
+	float top(float z) {
+		return pos.y + 2.f * (zoom - z) * ((float)height / (float)width);
+	}
 };
 float distance(Vec2 v1, Vec2 v2) {
 	return sqrt(powf(v2.x - v1.x, 2.f) + powf(v2.y - v1.y, 2.f));
@@ -249,7 +264,7 @@ float roundToPlace(float x, float place) {
 unsigned int fps = 0U;
 unsigned int fpsCounter = fps;
 double lastFpsTime = 0.; // resets every second
-double frameTime = 0.0f;
+double frameTime = 0.;
 double lastFrameTime = 0.;
 string getFileNameFromPath(string path) {
 	for (int i = (int)path.size() - 1; i >= 0; i--) {
@@ -261,111 +276,6 @@ string getFileNameFromPath(string path) {
 	return "idk";
 }
 
-Vec2 getCharacterCoords(char c) {
-	Vec2 coords{31.f, 4.f};
-	switch (c) {
-		case 'a':coords = {0.f, 0.f};break;
-		case 'b':coords = {1.f, 0.f};break;
-		case 'c':coords = {2.f, 0.f};break;
-		case 'd':coords = {3.f, 0.f};break;
-		case 'e':coords = {4.f, 0.f};break;
-		case 'f':coords = {5.f, 0.f};break;
-		case 'g':coords = {6.f, 0.f};break;
-		case 'h':coords = {7.f, 0.f};break;
-		case 'i':coords = {8.f, 0.f};break;
-		case 'j':coords = {9.f, 0.f};break;
-		case 'k':coords = {10.f, 0.f};break;
-		case 'l':coords = {11.f, 0.f};break;
-		case 'm':coords = {12.f, 0.f};break;
-		case 'n':coords = {13.f, 0.f};break;
-		case 'o':coords = {14.f, 0.f};break;
-		case 'p':coords = {15.f, 0.f};break;
-		case 'q':coords = {16.f, 0.f};break;
-		case 'r':coords = {17.f, 0.f};break;
-		case 's':coords = {18.f, 0.f};break;
-		case 't':coords = {19.f, 0.f};break;
-		case 'u':coords = {20.f, 0.f};break;
-		case 'v':coords = {21.f, 0.f};break;
-		case 'w':coords = {22.f, 0.f};break;
-		case 'x':coords = {23.f, 0.f};break;
-		case 'y':coords = {24.f, 0.f};break;
-		case 'z':coords = {25.f, 0.f};break;
-
-		case '1':coords = {0.f, 2.f};break;
-		case '2':coords = {1.f, 2.f};break;
-		case '3':coords = {2.f, 2.f};break;
-		case '4':coords = {3.f, 2.f};break;
-		case '5':coords = {4.f, 2.f};break;
-		case '6':coords = {5.f, 2.f};break;
-		case '7':coords = {6.f, 2.f};break;
-		case '8':coords = {7.f, 2.f};break;
-		case '9':coords = {8.f, 2.f};break;
-		case '0':coords = {9.f, 2.f};break;
-		
-		case 'A':coords = {0.f, 1.f};break;
-		case 'B':coords = {1.f, 1.f};break;
-		case 'C':coords = {2.f, 1.f};break;
-		case 'D':coords = {3.f, 1.f};break;
-		case 'E':coords = {4.f, 1.f};break;
-		case 'F':coords = {5.f, 1.f};break;
-		case 'G':coords = {6.f, 1.f};break;
-		case 'H':coords = {7.f, 1.f};break;
-		case 'I':coords = {8.f, 1.f};break;
-		case 'J':coords = {9.f, 1.f};break;
-		case 'K':coords = {10.f, 1.f};break;
-		case 'L':coords = {11.f, 1.f};break;
-		case 'M':coords = {12.f, 1.f};break;
-		case 'N':coords = {13.f, 1.f};break;
-		case 'O':coords = {14.f, 1.f};break;
-		case 'P':coords = {15.f, 1.f};break;
-		case 'Q':coords = {16.f, 1.f};break;
-		case 'R':coords = {17.f, 1.f};break;
-		case 'S':coords = {18.f, 1.f};break;
-		case 'T':coords = {19.f, 1.f};break;
-		case 'U':coords = {20.f, 1.f};break;
-		case 'V':coords = {21.f, 1.f};break;
-		case 'W':coords = {22.f, 1.f};break;
-		case 'X':coords = {23.f, 1.f};break;
-		case 'Y':coords = {24.f, 1.f};break;
-		case 'Z':coords = {25.f, 1.f};break;
-		
-		case '!':coords = {26.f, 0.f};break;
-		case '@':coords = {27.f, 0.f};break;
-		case '#':coords = {28.f, 0.f};break;
-		case '$':coords = {29.f, 0.f};break;
-		case '%':coords = {30.f, 0.f};break;
-		case '^':coords = {31.f, 0.f};break;
-		case '&':coords = {26.f, 1.f};break;
-		case '*':coords = {27.f, 1.f};break;
-		case '(':coords = {28.f, 1.f};break;
-		case ')':coords = {29.f, 1.f};break;
-		case '-':coords = {30.f, 1.f};break;
-		case '=':coords = {31.f, 1.f};break;
-		
-		case '`':coords = {10.f, 2.f};break;
-		case '~':coords = {11.f, 2.f};break;
-		case '_':coords = {12.f, 2.f};break;
-		case '+':coords = {13.f, 2.f};break;
-		case '[':coords = {14.f, 2.f};break;
-		case ']':coords = {15.f, 2.f};break;
-		case '{':coords = {16.f, 2.f};break;
-		case '}':coords = {17.f, 2.f};break;
-		case '\\':coords = {18.f, 2.f};break;
-		case '|':coords = {19.f, 2.f};break;
-		case ';':coords = {20.f, 2.f};break;
-		case '\'':coords = {21.f, 2.f};break;
-		case ':':coords = {22.f, 2.f};break;
-		case '"':coords = {23.f, 2.f};break;
-		case ',':coords = {24.f, 2.f};break;
-		case '.':coords = {25.f, 2.f};break;
-		case '<':coords = {26.f, 2.f};break;
-		case '>':coords = {27.f, 2.f};break;
-		case '/':coords = {28.f, 2.f};break;
-		case '?':coords = {29.f, 2.f};break;
-		case ' ':coords = {30.f, 2.f};break;
-	};
-	return coords;
-};
 string getFileText(string path) {
 	ifstream file{path};
 	if (!file.is_open()) {
@@ -461,7 +371,7 @@ class Material {
 int newEntityID = 0;
 namespace itypes {
 	enum itypes {
-		none, sword, bshorin, excalibur, burger, lantern, pickaxe
+		none, sword, bshorin, excalibur, burger, lantern, pickaxe, antbread
 	};
 }
 class Item {
@@ -540,6 +450,16 @@ class Item {
 			size = {1.f, 1.f};
 			punchDelay = 1.25f;
 			break;
+
+			case itypes::antbread:
+			durability = 3.f;
+			damage = 0.1f;
+			material = "antbread";
+			size = {1.f, 1.f};
+			punchDelay = 1.f;
+			isEdible = true;
+			eatingHealth = 1.5f;
+			break;
 		}
 		maxDurability = durability;
 	}
@@ -549,9 +469,19 @@ namespace etypes {
 		player,sentry,mimic
 	};
 }
+class SkinList {
+	public:
+	vector<string> list;
+	SkinList() {
+		for (const auto & entry : filesystem::directory_iterator("resources/texture/skins")) {
+			list.push_back(getFileNameFromPath(entry.path().u8string()));
+		}
+	}
+};
+SkinList skins;
 class Entity {
 public:
-	Vec2 pos = {20.f, 1000.f};
+	Vec2 pos = {20.f, 100.f};
 	Vec2 size = {0.5f, 1.8f};
 	Vec2 vel = {0.f, 0.f};
 	int id = newEntityID++;
@@ -574,14 +504,15 @@ public:
 		for (int i = 0; i < 8; i++) {
 			items.push_back({i == 0 ? itypes::sword : itypes::none});
 		}
-		items[1] = {itypes::bshorin};
-		items[2] = {itypes::excalibur};
-		items[3] = {itypes::burger};
-		items[4] = {itypes::lantern};
-		items[5] = {itypes::pickaxe};
+		items.at(1) = {itypes::bshorin};
+		items.at(2) = {itypes::excalibur};
+		items.at(3) = {itypes::burger};
+		items.at(4) = {itypes::lantern};
+		items.at(5) = {itypes::pickaxe};
+		items.at(6) = {itypes::antbread};
 		switch (type) {
 			case etypes::player:
-				material = "player";
+				material = "skin_" + skins.list.at(1); 
 				controlsType = 0;
 				size = {0.5f, 1.8f};
 				health = 10.f;
@@ -611,7 +542,7 @@ struct EntityCollision {
 };
 namespace ttypes {
 	enum types {
-		air,dirt,stone,wood,log,leaves,sentry_shack_bottom,sentry_shack_middle,sentry_shack_top
+		air,dirt,snow,stone,wood,log,leaves,sentry_shack_bottom,sentry_shack_middle,sentry_shack_top
 	};
 }
 class Tile {
@@ -631,27 +562,32 @@ class Tile {
 				break;
 			case ttypes::dirt:
 				health = 3.f;
-				friction = 0.25f;
+				friction = 0.95f;
+				isSolid = true;
+				break;
+			case ttypes::snow:
+				health = 1.5f;
+				friction = 0.8f;
 				isSolid = true;
 				break;
 			case ttypes::stone:
 				health = 60.f;
-				friction = 0.5f;
+				friction = 0.95f;
 				isSolid = true;
 				break;
 			case ttypes::wood:
 				health = 7.f;
-				friction = 0.3f;
+				friction = 0.9f;
 				isSolid = true;
 				break;
 			case ttypes::log:
 				health = 10.f;
-				friction = 0.75f;
+				friction = 0.9f;
 				isSolid = true;
 				break;
 			case ttypes::leaves:
 				health = 0.5f;
-				friction = 0.1f;
+				friction = 0.8f;
 				isSolid = true;
 				break;
 			case ttypes::sentry_shack_bottom:
@@ -682,12 +618,12 @@ class PerlinGenerator {
 		float r[MAX_VERTICES];
 		PerlinGenerator() {
 			for (int i = 0; i < MAX_VERTICES; i++) {
-				r[i] = randFloat();
+				r[i] = randFloat() * 2.f - 1.f;
 			}
 		}
-		float getVal(float x) {
-			int xMin = (int)x & (MAX_VERTICES - 1);
-			int xMax = (xMin + 1) & (MAX_VERTICES - 1);
+		float getVal(float x) { // xmin okgoookgfgfoookgfo
+			int xMin = mod(floor(x), static_cast<float>(MAX_VERTICES));
+			int xMax = mod(floor(x) + 1.f, static_cast<float>(MAX_VERTICES));
 			return lerp(r[xMin], r[xMax], smoothstep(x - floor(x)));
 		}
 	private:
@@ -718,186 +654,30 @@ struct Photon {
 	float x, y, xv, yv;
 	float r, g, b;
 };
-struct Button {
-	string text;
-	float x;
-	float y;
-	float width;
-	float height;
-	bool enabled;
-	void click();
-};
-void claco() {
-	cout << "[Information]: Boa,aaa,aaa,aaa,sda,sda,asd" << endl;
-}
-vector<Button> buttons = {
-	{"bloab", 0.f, 0.f, 0.1f, 0.1f, true}
-};
-class World {
-	public:
-	vector<Entity> entities = {{0}};
-	vector<Particle> particles = {};
-	Camera camera;
-	static const int worldWidth = 5000;
-	static const int worldHeight = 1000;
-
-	const siv::PerlinNoise::seed_type seed = 123456u;
-	const siv::PerlinNoise perlin{ seed };
-	const siv::PerlinNoise::seed_type seed2 = 123457u;
-	const siv::PerlinNoise perlin2{ seed };
-
-	// lighting vars
-	Tile tiles[worldWidth][worldHeight];
-	Tile bgTiles[worldWidth][worldHeight];
-	Vec3 lightmap[worldWidth][worldHeight];
-	int lightmapN[worldWidth][worldHeight];
-	vector<Photon> photons = {};
-
-	static const int octaves = 10;
-	PerlinGenerator gen[octaves];
-	float time = 0.f;
-	float getGeneratorHeight(float x) {
-		float height = 0.f;
-		float scale = 100.f;
-		for (int i = 0; i < octaves; i++) {
-			float it = powf(2.f, (float)i);
-			height += gen[i].getVal(x / scale * it) / it * scale;
-		}
-		return height;
+static const int SECT_SIZE = 32;
+class TileSection {
+public:
+	int x;
+	int y;
+	Tile tiles[SECT_SIZE][SECT_SIZE];
+	Tile bgTiles[SECT_SIZE][SECT_SIZE];
+	Vec3 lightmap[SECT_SIZE][SECT_SIZE];
+	Vec3 currentLightmap[SECT_SIZE][SECT_SIZE];
+	int lightmapN[SECT_SIZE][SECT_SIZE];
+	TileSection(int ax, int ay) {
+		x = ax;
+		y = ay;
 	}
-	World() {
-		// level generation generate generator generators generating generated generates generatings generations generational generationality generationalities
-		for (int x = 0; x < worldWidth; x++) {
-			float height = getGeneratorHeight(x);
-			for (int y = 0; y < worldHeight; y++) {
-				lightmap[x][y] = {1.f, 1.f, 1.f};
-				tiles[x][y] = bgTiles[x][y] = {y < height ? (y < height - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air};
-				if (perlin.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.25f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.1f) tiles[x][y] = {ttypes::air};
-			}
-		}
-		// tree n sentry shack generation
-		for (int x = 2; x < worldWidth - 2; x++) {
-			for (int y = worldHeight - 1 - 10; y >= 1; y--) {
-				if (tiles[x][y].type == ttypes::air && tiles[x][y - 1].type != ttypes::air && randFloat() < 0.005f) {
-					tiles[x][y] = {ttypes::sentry_shack_bottom};
-					tiles[x][y + 1] = {ttypes::sentry_shack_middle};
-					tiles[x][y + 2] = {ttypes::sentry_shack_top};
-				}
-				if (tiles[x][y].type == ttypes::air && tiles[x][y - 1].type == ttypes::dirt && randFloat() < 0.05f) {
-					tiles[x][y] = {ttypes::log};
-					tiles[x][y + 1] = {ttypes::log};
-					tiles[x][y + 2] = {ttypes::log};
-					tiles[x][y + 3] = {ttypes::log};
-					tiles[x][y + 4] = {ttypes::log};
-					tiles[x][y + 5] = {ttypes::log};
-					tiles[x][y + 6] = {ttypes::leaves};
-					tiles[x][y + 7] = {ttypes::leaves};
-					tiles[x][y + 8] = {ttypes::leaves};
-					tiles[x - 1][y + 6] = {ttypes::leaves};
-					tiles[x - 1][y + 7] = {ttypes::leaves};
-					tiles[x - 1][y + 8] = {ttypes::leaves};
-					tiles[x + 1][y + 6] = {ttypes::leaves};
-					tiles[x + 1][y + 7] = {ttypes::leaves};
-					tiles[x + 1][y + 8] = {ttypes::leaves};
-					
-					tiles[x - 2][y + 6] = {ttypes::leaves};
-					tiles[x - 2][y + 7] = {ttypes::leaves};
-					tiles[x + 2][y + 6] = {ttypes::leaves};
-					tiles[x + 2][y + 7] = {ttypes::leaves};
-				}
+	void clearCurrentLightmap() {
+		for (int x = 0; x < SECT_SIZE; x++) {
+			for (int y = 0; y < SECT_SIZE; y++) {
+				currentLightmap[x][y] = {0.f, 0.f, 0.f};
 			}
 		}
 	}
-	Vec3 currentLightmap[worldWidth][worldHeight];
-	void lightingStep(vector<Light> lights, float dt) {
-		//return;//asdasd
-		float photonSpeed = 0.5f;
-		float howmanyper = 0.08f;
-		for (int i = 0; i < (int)lights.size(); i++) {
-			for (float r = 0; r < PI * 2.f; r += howmanyper) {
-				photons.push_back({
-					lights[i].pos.x,
-					lights[i].pos.y,
-					sin(r) * photonSpeed,
-					cos(r) * photonSpeed,
-					lights[i].intensity.r, 
-					lights[i].intensity.g, 
-					lights[i].intensity.b
-				});
-			}
-		}
-		int right = camera.right();
-		int top = camera.top();
-		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
-			photons.push_back({
-				(float)x + 0.5f,
-				min(camera.top(), (float)(static_cast<int>(worldHeight))) - 0.5f,
-				0.f,
-				-1.f,
-				0.5f,
-				0.5f,
-				0.5f
-			});
-			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
-				currentLightmap[x][y] = {0, 0, 0};
-			}
-		}
-		for (int i = (int)photons.size() - 1; i >= 0; i--) {
-			for (int j = 0; j < 15; j++) { // rt steps
-				if (isPointAir(photons[i].x + photons[i].xv, photons[i].y)) photons[i].x += photons[i].xv;
-				else { // diffuse
-					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].y].r += photons[i].r;
-					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].y].g += photons[i].g;
-					currentLightmap[(int)(photons[i].x + photons[i].xv)][(int)photons[i].y].b += photons[i].b;
-					photons[i].xv *= -1.f;
-					rotateVector(&photons[i].xv, &photons[i].yv, randFloat() * 3.14f - 1.57f);
-					photons[i].r -= 0.1f;
-					photons[i].g -= 0.1f;
-					photons[i].b -= 0.1f;
-				}
-				if (isPointAir(photons[i].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
-				else {
-					currentLightmap[(int)photons[i].x][(int)(photons[i].y + photons[i].yv)].r += photons[i].r;
-					currentLightmap[(int)photons[i].x][(int)(photons[i].y + photons[i].yv)].g += photons[i].g;
-					currentLightmap[(int)photons[i].x][(int)(photons[i].y + photons[i].yv)].b += photons[i].b;
-					photons[i].yv *= -1.f;
-					rotateVector(&photons[i].xv, &photons[i].yv, randFloat() * 3.14f - 1.57f);
-					photons[i].r -= 0.1f;
-					photons[i].g -= 0.1f;
-					photons[i].b -= 0.1f;
-				}
-
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].r += photons[i].r;
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].g += photons[i].g;
-				currentLightmap[(int)photons[i].x][(int)photons[i].y].b += photons[i].b; // if not aabb check line
-				if (
-					(photons[i].r + photons[i].g + photons[i].b) / 3.f <= 0.f ||
-					(
-						(
-							photons[i].x > camera.right() ||
-							photons[i].x < camera.left() ||
-							photons[i].y < camera.bottom() ||
-							photons[i].y > camera.top()
-						) &&
-						!lineRect(
-							photons[i].x,
-							photons[i].y,
-							photons[i].x + photons[i].xv * 32767.f,
-							photons[i].y + photons[i].yv * 32767.f,
-							camera.left(),
-							camera.bottom(),
-							camera.right() - camera.left(),
-							camera.top() - camera.bottom()
-						)
-					)
-				) {
-					photons.erase(photons.begin() + i);
-					break;
-				}
-			}
-		}
-		for (int x = max((int)camera.left(), 0); x < min(right, static_cast<int>(worldWidth)); x++) {
-			for (int y = max((int)camera.bottom(), 0); y < min(top, static_cast<int>(worldHeight)); y++) {
+	void solveLightmap() {
+		for (int x = 0; x < SECT_SIZE; x++) {
+			for (int y = 0; y < SECT_SIZE; y++) {
 				if (lightmapN[x][y] > 0) {
 					lightmap[x][y].r = (lightmap[x][y].r * (float)lightmapN[x][y] + currentLightmap[x][y].r) / (float)(lightmapN[x][y] + 1);
 					lightmap[x][y].g = (lightmap[x][y].g * (float)lightmapN[x][y] + currentLightmap[x][y].g) / (float)(lightmapN[x][y] + 1);
@@ -907,32 +687,307 @@ class World {
 					lightmap[x][y].g = currentLightmap[x][y].g;
 					lightmap[x][y].b = currentLightmap[x][y].b;
 				}
-				lightmapN[x][y]++;
-				lightmapN[x][y] = min(lightmapN[x][y], 200);
+				lightmapN[x][y] = min(lightmapN[x][y] + 1, 200);
 			}
 		}
 	}
+};
+struct TileAddress {
+	int i, x, y;
+};
+struct QueueTile {
+	Tile tile;
+	int x, y;
+};
+class World {
+	public:
+	vector<Entity> entities = {};
+	int self = -1;
+	vector<Particle> particles = {};
+	Camera camera;
+
+	const siv::PerlinNoise::seed_type seed = 123456u;
+	const siv::PerlinNoise perlin{ seed };
+	const siv::PerlinNoise::seed_type seed2 = 123457u;
+	const siv::PerlinNoise perlin2{ seed };
+
+	vector<TileSection> sections;
+	vector<Photon> photons = {};
+
+	vector<Vec3> clouds;
+
+	static const int octaves = 10;
+	PerlinGenerator gen[octaves];
+	TileSection gs{0, 0}; // generating section
+	float time = 0.f;
+	World() {
+		for (int i = 0; i < 500; i++) {
+			clouds.push_back({randFloat() * 10000.f, randFloat() * 10.f + 20.f, randFloat() * -3000.f - 10.f});
+		}
+		Entity player{etypes::player};
+		player.pos.y = getGeneratorHeight(player.pos.x) + 5.f;
+		spawnEntity(player);
+	}
+	float getGeneratorHeight(float x) {
+		float height = 0.f;
+		float scale = 200.f;
+		for (int i = 0; i < octaves; i++) {
+			float it = powf(2.f, (float)i);
+			height += gen[i].getVal(x / scale * it) / it * scale * 0.25f;
+		}
+		return height;
+	}
+	Tile generateTile(int x, int y, float heightFake, bool hasHeight) {
+		//return {y < 16};
+		float height = hasHeight ? heightFake : getGeneratorHeight(x);
+		int type = y < round(height) ? (y < round(height) - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air;
+		if (perlin.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.25f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.1f) type = ttypes::air;
+		return {type};
+	}
+	void setLocalGSTile(int x, int y, Tile tile) {
+		if (x >= 0 && y >= 0 && x < SECT_SIZE && y < SECT_SIZE) {
+			gs.tiles[x][y] = tile;
+			return;
+		}
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
+				sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)] = tile;
+				return;
+			}
+		}
+	}
+	Tile getLocalGSTile(int x, int y) {
+		if (x >= 0 && y >= 0 && x < SECT_SIZE && y < SECT_SIZE) {
+			return gs.tiles[x][y];
+		}
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
+				return sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)];
+			}
+		}
+		return {ttypes::air}; // do do replace
+	}
+	void setLocalGSBGTile(int x, int y, Tile tile) {
+		if (x >= 0 && y >= 0 && x < SECT_SIZE && y < SECT_SIZE) {
+			gs.bgTiles[x][y] = tile;
+			return;
+		}
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
+				sections.at(i).bgTiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)] = tile;
+				return;
+			}
+		}
+	}
+	Tile getLocalGSBGTile(int x, int y) {
+		if (x >= 0 && y >= 0 && x < SECT_SIZE && y < SECT_SIZE) {
+			return gs.bgTiles[x][y];
+		}
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
+				return sections.at(i).bgTiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)];
+			}
+		}
+		return {ttypes::air}; // do do replace
+	}
+	void generateTileSection(int x, int y) {
+		gs = {x, y};
+		// 1: base terrain gen
+		for (int rx = 0; rx < SECT_SIZE; rx++) {
+			float height = getGeneratorHeight(rx + x * SECT_SIZE);
+			for (int ry = 0; ry < SECT_SIZE; ry++) {
+				Tile t = generateTile(rx + x * SECT_SIZE, ry + y * SECT_SIZE, height, true);
+				setLocalGSTile(rx, ry, t);
+				setLocalGSBGTile(rx, ry, t);
+				gs.lightmap[rx][ry] = gs.currentLightmap[rx][ry] = {0.f, 0.f, 0.f};
+				gs.lightmapN[rx][ry] = 0;
+			}
+		}
+		// 2: tree n sentry shack generation
+		for (int rx = 0; rx < SECT_SIZE; rx++) {
+			for (int ry = 0; ry < SECT_SIZE; ry++) {
+				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type != ttypes::air && randFloat() < 0.001f) {
+					setLocalGSTile(rx, ry, {ttypes::sentry_shack_bottom});
+					setLocalGSTile(rx, ry + 1, {ttypes::sentry_shack_middle});
+					setLocalGSTile(rx, ry + 1, {ttypes::sentry_shack_top});
+				}
+				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type == ttypes::dirt && randFloat() < 0.05f) {
+					setLocalGSTile(rx, ry, {ttypes::log});
+					setLocalGSTile(rx, ry + 1, {ttypes::log});
+					setLocalGSTile(rx, ry + 2, {ttypes::log});
+					setLocalGSTile(rx, ry + 3, {ttypes::log});
+					setLocalGSTile(rx, ry + 4, {ttypes::log});
+					setLocalGSTile(rx, ry + 5, {ttypes::log});
+					setLocalGSTile(rx, ry + 6, {ttypes::leaves});
+					setLocalGSTile(rx, ry + 7, {ttypes::leaves});
+					setLocalGSTile(rx, ry + 8, {ttypes::leaves});
+					setLocalGSTile(rx - 1, ry + 6, {ttypes::leaves});
+					setLocalGSTile(rx - 1, ry + 7, {ttypes::leaves});
+					setLocalGSTile(rx - 1, ry + 8, {ttypes::leaves});
+					setLocalGSTile(rx + 1, ry + 6, {ttypes::leaves});
+					setLocalGSTile(rx + 1, ry + 7, {ttypes::leaves});
+					setLocalGSTile(rx + 1, ry + 8, {ttypes::leaves});
+					
+					setLocalGSTile(rx - 2, ry + 6, {ttypes::leaves});
+					setLocalGSTile(rx - 2, ry + 7, {ttypes::leaves});
+					setLocalGSTile(rx + 2, ry + 6, {ttypes::leaves});
+					setLocalGSTile(rx + 2, ry + 7, {ttypes::leaves});
+				}
+			}
+		}
+		return sections.push_back(gs);
+	}
+	TileAddress getTileAddress(int x, int y) {
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) return {i, mod(x, SECT_SIZE), mod(y, SECT_SIZE)};
+		}
+		return {-1, 0, 0};
+	}
+	void lightingStep(vector<Light> lights, float dt) {
+		float photonSpeed = 0.5f;
+		float howmanyper = 0.08f;
+
+		// Emit photons from lights
+		for (int i = 0; i < (int)lights.size(); i++) {
+			for (float r = 0; r < PI * 2.f; r += howmanyper) {
+				photons.push_back({
+					lights.at(i).pos.x,
+					lights.at(i).pos.y,
+					sin(r) * photonSpeed,
+					cos(r) * photonSpeed,
+					lights.at(i).intensity.r,
+					lights.at(i).intensity.g,
+					lights.at(i).intensity.b
+				});
+			}
+		}
+
+		// emit skylight from top 
+		int right = floor(camera.right(0.f));
+		for (int x = floor(camera.left(0.f)); x < right; x++) {
+			photons.push_back({
+				(float)x + 0.5f,
+				camera.top(0.f),
+				0.f,
+				-1.f,
+				0.5f,
+				0.5f,
+				0.5f
+			});
+		}
+
+		// clear current light map
+		for (int i = 0; i < (int)sections.size(); i++) {
+			sections.at(i).clearCurrentLightmap();
+		}
+
+		// coop over every photon
+		for (int i = (int)photons.size() - 1; i >= 0; i--) {
+			for (int j = 0; j < 15; j++) { // rt steps per photon
+				// Delete photon if it is bad
+				if (
+					(photons.at(i).r + photons.at(i).g + photons.at(i).b) / 3.f <= 0.f ||
+					(
+						(
+							photons.at(i).x > camera.right(0.f) ||
+							photons.at(i).x < camera.left(0.f) ||
+							photons.at(i).y < camera.bottom(0.f) ||
+							photons.at(i).y > camera.top(0.f)
+						) &&
+						!lineRect(
+							photons.at(i).x,
+							photons.at(i).y,
+							photons.at(i).x + photons.at(i).xv * 32767.f,
+							photons.at(i).y + photons.at(i).yv * 32767.f,
+							camera.left(0.f),
+							camera.bottom(0.f),
+							camera.right(0.f) - camera.left(0.f),
+							camera.top(0.f) - camera.bottom(0.f)
+						)
+					)
+				) {
+					photons.erase(photons.begin() + i);
+					break;
+				}
+				
+				// X movement
+				if (isPointAir(photons.at(i).x + photons.at(i).xv, photons.at(i).y)) photons.at(i).x += photons.at(i).xv;
+				else { // diffuse
+					addColorToRGAndBInCurrentLightmapTile((int)floor(photons.at(i).x + photons.at(i).xv), (int)floor(photons.at(i).y), photons.at(i).r, photons.at(i).g, photons.at(i).b);
+					photons.at(i).xv *= -1.f;
+					rotateVector(&photons.at(i).xv, &photons.at(i).yv, randFloat() * 3.14f - 1.57f);
+					photons.at(i).r -= 0.1f;
+					photons.at(i).g -= 0.1f;
+					photons.at(i).b -= 0.1f;
+				}
+				
+				// Y movement
+				if (isPointAir(photons[i].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
+				else {
+					addColorToRGAndBInCurrentLightmapTile((int)floor(photons.at(i).x), (int)floor(photons.at(i).y + photons.at(i).yv), photons.at(i).r, photons.at(i).g, photons.at(i).b);
+					photons.at(i).yv *= -1.f;
+					rotateVector(&photons.at(i).xv, &photons.at(i).yv, randFloat() * 3.14f - 1.57f);
+					photons.at(i).r -= 0.1f;
+					photons.at(i).g -= 0.1f;
+					photons.at(i).b -= 0.1f;
+				}
+				
+				addColorToRGAndBInCurrentLightmapTile((int)floor(photons.at(i).x), (int)floor(photons.at(i).y), photons.at(i).r, photons.at(i).g, photons.at(i).b);
+			}
+		}
+
+		// Solve light map
+		for (int i = 0; i < (int)sections.size(); i++) {
+			sections.at(i).solveLightmap();
+		}
+	}
 	Tile getTile(int x, int y) {
-		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return {0};
-		return tiles[x][y];
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) return sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)];
+		}
+		return {ttypes::air};
+	}
+	void addColorToRGAndBInCurrentLightmapTile(int x, int y, float r, float g, float b) {
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
+				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].r += r;
+				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].g += g;
+				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].b += b;
+			}
+		}
+	}
+	void setToRGAndBInCurrentLightmapTile(int x, int y, float r, float g, float b) {
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
+				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].r += r;
+				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].g += g;
+				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].b += b;
+			}
+		}
 	}
 	Tile getBgTile(int x, int y) {
-		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return {0};
-		return bgTiles[x][y];
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) return sections.at(i).bgTiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)];
+		}
+		return {ttypes::air};
 	}
 	bool isPointAir(float x, float y) {
-		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return false;
-		return tiles[(int)x][(int)y].type == ttypes::air;
+		return getTile((int)x, (int)y).type == ttypes::air;
 	}
 	void setTile(int x, int y, Tile t) {
-		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return;
-		tiles[x][y] = t;
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)] = t;
+		}
+		// do do tile queueueueue
 	}
 	void damageTile(int x, int y, float amount) {
-		if (x < 0 || y < 0 || x >= worldWidth || y >= worldHeight) return;
-		tiles[x][y].health -= amount;
-		if (tiles[x][y].health <= 0.f) {
-			tiles[x][y] = {ttypes::air};
+		int i;
+		for (i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) break;
+		}
+		sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].health -= amount;
+		if (sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].health <= 0.f) {
+			sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)] = {ttypes::air};
 		}
 	}
 	bool areTwoEntitiesCollidingWithEachother(Entity* e1, Entity* e2) {
@@ -942,9 +997,16 @@ class World {
 	EntityCollision getEntityCollision(Entity* e) {
 		vector<iVec2> tileCollisions;
 		bool collided = false;
-		for (int x = (int)(e->pos.x - e->size.x / 2.f); x < (int)ceil(e->pos.x + e->size.x / 2.f); x++) {
-			for (int y = (int)e->pos.y; y < (int)ceil(e->pos.y + e->size.y); y++) {
-				if (getTile(x, y).isSolid) {
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (
+				e->pos.x + e->size.x / 2.f < (float)sections.at(i).x * static_cast<float>(SECT_SIZE) ||
+				e->pos.x - e->size.x / 2.f > ((float)sections.at(i).x + 1.f) * static_cast<float>(SECT_SIZE) ||
+				e->pos.y + e->size.y < (float)sections.at(i).y * static_cast<float>(SECT_SIZE) ||
+				e->pos.y > ((float)sections.at(i).y + 1.f) * static_cast<float>(SECT_SIZE)
+			) continue;
+			for (int x = max((int)floor(e->pos.x - e->size.x / 2.f), sections.at(i).x * SECT_SIZE); x < min((int)ceil(e->pos.x + e->size.x / 2.f), (sections.at(i).x + 1) * SECT_SIZE); x++) {
+				for (int y = max((int)floor(e->pos.y), sections.at(i).y * SECT_SIZE); y < min((int)ceil(e->pos.y + e->size.y), (sections.at(i).y + 1) * SECT_SIZE); y++) {
+					if (!sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].isSolid) continue;
 					tileCollisions.push_back({x, y});
 					collided = true;
 				}
@@ -952,8 +1014,8 @@ class World {
 		}
 		if (collided) return {true, tileCollisions, false, e, nullptr};
 		/*for (int i = 0; i < (int)entities.size(); i++) {
-			if (entities[i].id == e->id) continue;
-			if (areTwoEntitiesCollidingWithEachother(e, &entities[i])) return {true, {}, true, e, &entities[i]};
+			if (entities.at(i).id == e->id) continue;
+			if (areTwoEntitiesCollidingWithEachother(e, &entities.at(i))) return {true, {}, true, e, &entities.at(i)};
 		}*/
 		return {false, {}, false, e, nullptr};
 	}
@@ -961,18 +1023,18 @@ class World {
 		if (e->punchDelayTimer > 0.f) return;
 		// cout << "punching intity info--- id: " << e->id << ", type" << e->type << endl;
 		for (int i = 0; i < (int)entities.size(); i++) {
-			if (entities[i].id == e->id) {
+			if (entities.at(i).id == e->id) {
 				break;
 			}
 		}
-		e->punchDelayTimer = e->items[e->itemNumber].punchDelay;
+		e->punchDelayTimer = e->items.at(e->itemNumber).punchDelay;
 		e->swingRotation = 0.f;
 		e->isSwinging = true;
 		bool facingRight = e->facingVector.x != -1;
 		particles.push_back({{e->pos.x + (facingRight ? e->size.x / 2.f + 0.5f : e->size.x / -2.f - 0.5f), e->pos.y + e->size.y / 2.f}, {0.f, 0.f}, {facingRight ? 1.f : -1.f, 1.f}, 0.3f, "sweep"});
 		for (int i = (int)e->size.y; i >= 0; i--) {
 			if (getTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i).type != ttypes::air) {
-				damageTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i, e->items[e->itemNumber].damage);
+				damageTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i, e->items.at(e->itemNumber).damage);
 				break;
 			}
 		}
@@ -980,31 +1042,49 @@ class World {
 			float right = facingRight ? (e->pos.x + e->size.x / 2.f + 1.f) : (e->pos.x - e->size.x / 2.f);
 			float left = facingRight ? (e->pos.x + e->size.x / 2.f) : (e->pos.x - e->size.x / 2.f - 1.f);
 			if (
-				right > entities[i].pos.x - entities[i].size.x / 2.f && 
-				left < entities[i].pos.x + entities[i].size.x / 2.f && 
-				e->pos.y + e->size.y / 2.f > entities[i].pos.y - entities[i].size.y / 2.f && 
-				e->pos.y - e->size.y / 2.f < entities[i].pos.y + entities[i].size.y / 2.f
+				right > entities.at(i).pos.x - entities.at(i).size.x / 2.f && 
+				left < entities.at(i).pos.x + entities.at(i).size.x / 2.f && 
+				e->pos.y + e->size.y / 2.f > entities.at(i).pos.y - entities.at(i).size.y / 2.f && 
+				e->pos.y - e->size.y / 2.f < entities.at(i).pos.y + entities.at(i).size.y / 2.f
 			) {
-				particles.push_back({{entities[i].pos.x, entities[i].pos.y + entities[i].size.y}, {0.f, 1.f}, {1.f, 1.f}, 1.f, "damage_heart"});
-				entities[i].health -= e->items[e->itemNumber].damage;
+				particles.push_back({{entities.at(i).pos.x, entities.at(i).pos.y + entities.at(i).size.y}, {0.f, 1.f}, {1.f, 1.f}, 1.f, "damage_heart"});
+				entities.at(i).health -= e->items.at(e->itemNumber).damage;
 			}
+		}
+	}
+	void spawnEntity(Entity e) {
+		entities.push_back(e);
+		if (self == -1 && e.type == etypes::player) self = entities.size() - 1;
+	}
+	void deleteEntity(int index) {
+		entities.erase(entities.begin() + index);
+		if (index < self) self--;
+		else if (index == self) {
+			self = -1;
+			spawnEntity({etypes::player});
 		}
 	}
 };
 float lerpd(float a, float b, float t, float d) {
-	return (b - a) * (t + d * 0.f) + a;
+	return lerp(a, b, 1.f - powf((1.f - t), d));
 }
 class GameState {
 	public:
 	World world;
 	float dt = 1.f;
 	float x = 0.f;
-	float playing = true;
-	int youNumber = -1;
+	bool playing = true;
+	bool shopOpen = false;
+	bool commandPromptOpen = false;
+	int typingMode = 0; // 0 in game 1 typing
+	string commandPromptText = "say udufsgdsfiu";
 	void tick() {
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
 		controls.clipMouse.y = (0.5f - controls.mouse.y / (float)height) * 2.f;
+
+		if (shopOpen) return;
+
 		controls.worldMouse.x = controls.clipMouse.x * (world.camera.zoom * (float)width / (float)height) + world.camera.pos.x;
 		controls.worldMouse.y = controls.clipMouse.y * world.camera.zoom + world.camera.pos.y;
 		// Physics Tracing Extreme
@@ -1018,42 +1098,40 @@ class GameState {
 		//find player is
 		vector<int> playerIs;
 		vector<Light> lights;
-		youNumber = -1;
 		for (int i = 0; i < (int)world.entities.size(); i++) {
-			if (world.entities[i].type == etypes::player) {
-				world.entities[i].health -= dt * 0.1f;
-				if (controls.e && world.entities[i].items[world.entities[i].itemNumber].isEdible) {
-					world.entities[i].health += world.entities[i].items[world.entities[i].itemNumber].eatingHealth * dt;
-					if (world.entities[i].health > world.entities[i].maxHealth) {
-						world.entities[i].health = world.entities[i].maxHealth;
+			if (world.entities.at(i).type == etypes::player) {
+				world.entities.at(i).health -= dt * 0.1f;
+				if (controls.e && world.entities.at(i).items.at(world.entities.at(i).itemNumber).isEdible) {
+					world.entities.at(i).health += world.entities.at(i).items.at(world.entities.at(i).itemNumber).eatingHealth * dt;
+					if (world.entities.at(i).health > world.entities.at(i).maxHealth) {
+						world.entities.at(i).health = world.entities.at(i).maxHealth;
 					}
-					world.entities[i].items[world.entities[i].itemNumber].durability -= dt;
-					if (world.entities[i].items[world.entities[i].itemNumber].durability <= 0.f) {
-						world.entities[i].items[world.entities[i].itemNumber] = {itypes::none};
+					world.entities.at(i).items.at(world.entities.at(i).itemNumber).durability -= dt;
+					if (world.entities.at(i).items.at(world.entities.at(i).itemNumber).durability <= 0.f) {
+						world.entities.at(i).items.at(world.entities.at(i).itemNumber) = {itypes::none};
 					}
 				}
-				if (youNumber != -1) youNumber = i;
 				playerIs.push_back(i);
 				if (controls.xPressed) {
 					controls.xPressed = false;
-					world.makeEntityPunch(&world.entities[i]);
+					world.makeEntityPunch(&world.entities.at(i));
 				}
 				if (
-					world.entities[i].items[world.entities[i].itemNumber].emission.r > 0.f &&
-					world.entities[i].items[world.entities[i].itemNumber].emission.g > 0.f &&
-					world.entities[i].items[world.entities[i].itemNumber].emission.b > 0.f
-				) lights.push_back({{world.entities[i].pos.x, world.entities[i].pos.y + world.entities[i].size.y / 2.f}, world.entities[i].items[world.entities[i].itemNumber].emission});
-				world.entities[i].items[world.entities[i].itemNumber].emission.r *= 0.999f;
-				world.entities[i].items[world.entities[i].itemNumber].emission.g *= 0.999f;
-				world.entities[i].items[world.entities[i].itemNumber].emission.b *= 0.999f;
+					world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.r > 0.f &&
+					world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.g > 0.f &&
+					world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.b > 0.f
+				) lights.push_back({{world.entities.at(i).pos.x, world.entities.at(i).pos.y + world.entities.at(i).size.y / 2.f}, world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission});
+				world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.r *= 0.999f;
+				world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.g *= 0.999f;
+				world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.b *= 0.999f;
 			}
 		}
 		world.lightingStep(lights, dt);
-		if (controls.mouseDown && controls.worldMouse.x > 0.f && controls.worldMouse.x < world.worldWidth && controls.worldMouse.y > 0.f && controls.worldMouse.y < world.worldHeight) {
-			world.damageTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, dt);
+		if (controls.mouseDown) {
+			world.damageTile((int)floor(controls.worldMouse.x), (int)floor(controls.worldMouse.y), 53.f * dt);
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
-			Entity* e = &world.entities[i];
+			Entity* e = &world.entities.at(i);
 			if (randFloat() < 0.0002f && e->type != 0) {
 				Entity latest = {e->type};
 				latest.pos.x = e->pos.x;
@@ -1077,17 +1155,16 @@ class GameState {
 				int nearestPlayerI = -1;
 				float nearestPlayerDistance = 0.f;
 				for (int j = 0; j < (int)playerIs.size(); j++) {
-					float currentDistance = distance(world.entities[playerIs[j]].pos, e->pos);
-					if ((nearestPlayerI == -1 || currentDistance < nearestPlayerDistance) && world.entities[playerIs[j]].id != e->id) {
+					float currentDistance = distance(world.entities.at(playerIs.at(j)).pos, e->pos);
+					if ((nearestPlayerI == -1 || currentDistance < nearestPlayerDistance) && world.entities.at(playerIs.at(j)).id != e->id) {
 						nearestPlayerDistance = currentDistance;
 						nearestPlayerI = j;
 					}
 				}
 				if (nearestPlayerI != -1) {
 					controlsUp = true;
-					controlsLeft = (world.entities[playerIs[nearestPlayerI]].pos.x < e->pos.x);
-					controlsRight = (world.entities[playerIs[nearestPlayerI]].pos.x > e->pos.x);
-					//cout << "them: " << i << ", " << world.entities.size() << endl;
+					controlsLeft = (world.entities.at(playerIs.at(nearestPlayerI)).pos.x < e->pos.x);
+					controlsRight = (world.entities.at(playerIs.at(nearestPlayerI)).pos.x > e->pos.x);
 					world.makeEntityPunch(e);
 				}
 			}
@@ -1101,7 +1178,7 @@ class GameState {
 
 			float friction;
 			if (e->onGround) {
-				Tile frictionTile = world.getTile((int)e->pos.x, (int)(e->pos.y - 0.1f));
+				Tile frictionTile = world.getTile((int)floor(e->pos.x), (int)floor(e->pos.y - 0.1f));
 				if (frictionTile.type == ttypes::air) {
 					float one = 1.f;
 					if (modf(e->pos.x, &one) > 0.5f) {
@@ -1112,7 +1189,7 @@ class GameState {
 				}
 				friction = frictionTile.friction;
 			} else {
-				friction = 0.01f;
+				friction = 0.5f;
 			}
 			
 			e->vel.y += gravity * dt;
@@ -1143,8 +1220,8 @@ class GameState {
 				}
 			}
 			if (e->type == etypes::player) {
-				for (int x = (int)(e->pos.x - e->size.x / 2.f); x < (int)ceil(e->pos.x + e->size.x / 2.f); x++) {
-					for (int y = (int)e->pos.y; y < (int)ceil(e->pos.y + e->size.y); y++) {
+				for (int x = (int)floor(e->pos.x - e->size.x / 2.f); x < (int)floor(e->pos.x + e->size.x / 2.f); x++) {
+					for (int y = (int)floor(e->pos.y); y < (int)floor(e->pos.y + e->size.y); y++) {
 						if (world.getTile(x, y).type == ttypes::sentry_shack_middle) {
 							world.setTile(x, y - 1, {ttypes::air});
 							world.setTile(x, y, {ttypes::air});
@@ -1162,37 +1239,269 @@ class GameState {
 			float targetX = 0.f;
 			float targetY = 0.f;
 			for (int i = 0; i < (int)playerIs.size(); i++) {
-				targetX += world.entities[playerIs[i]].pos.x;
-				targetY += world.entities[playerIs[i]].pos.y + world.entities[playerIs[i]].size.y / 2.f;
+				targetX += world.entities.at(playerIs.at(i)).pos.x;
+				targetY += world.entities.at(playerIs.at(i)).pos.y + world.entities.at(playerIs.at(i)).size.y / 2.f;
 			}
 			targetX /= (float)playerIs.size();
 			targetY /= (float)playerIs.size();
 
-			world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.05f, 1.f);
-			world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.05f, 1.f);
+			world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.99f, dt);
+			world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.99f, dt);
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
-			if (world.entities[i].health <= 0.f) {
-				world.particles.push_back({world.entities[i].pos, {0.f, 1.f}, {1.f, 1.f}, 2.f, "skull"});
-				world.entities.erase(world.entities.begin() + i);
+			if (world.entities.at(i).health <= 0.f) {
+				world.particles.push_back({world.entities.at(i).pos, {0.f, 1.f}, {1.f, 1.f}, 2.f, "skull"});
+				world.deleteEntity(i);
 			}
 		}
 		for (int i = (int)world.particles.size() - 1; i >= 0; i--) {
-			world.particles[i].pos.x += world.particles[i].vel.x * dt;
-			world.particles[i].pos.y += world.particles[i].vel.y * dt;
-			world.particles[i].time -= dt;
-			if (world.particles[i].time <= 0) world.particles.erase(world.particles.begin() + i);
+			world.particles.at(i).pos.x += world.particles.at(i).vel.x * dt;
+			world.particles.at(i).pos.y += world.particles.at(i).vel.y * dt;
+			world.particles.at(i).time -= dt;
+			if (world.particles.at(i).time <= 0) world.particles.erase(world.particles.begin() + i);
+		}
+		world.camera.zoom = lerpd(world.camera.zoom, world.camera.zoomTarget, 0.99f, dt);
+		// delete old and generate new sections
+		for (int i = world.sections.size() - 1; i >= 0; i--) {
+			if (
+				(float)((world.sections.at(i).x + 1) * SECT_SIZE) < world.camera.left(0.f) ||
+				(float)(world.sections.at(i).x * SECT_SIZE) > world.camera.right(0.f) ||
+				(float)((world.sections.at(i).y + 1) * SECT_SIZE) < world.camera.bottom(0.f) ||
+				(float)(world.sections.at(i).y * SECT_SIZE) > world.camera.top(0.f)
+			) {
+				world.sections.erase(world.sections.begin() + i);
+			}
+		};
+		for (int x = floor(world.camera.left(0.f) / static_cast<float>(SECT_SIZE)); x <= floor(world.camera.right(0.f) / static_cast<float>(SECT_SIZE)); x++) {
+			for (int y = floor(world.camera.bottom(0.f) / static_cast<float>(SECT_SIZE)); y <= floor(world.camera.top(0.f) / static_cast<float>(SECT_SIZE)); y++) {
+				bool has = false;
+				for (int i = 0; i < (int)world.sections.size(); i++) {
+					if (world.sections[i].x == x && world.sections[i].y == y) {
+						has = true;
+						break;
+					}
+				}
+				if (has) continue;
+				world.generateTileSection(x, y);
+			}
 		}
 
 		world.time += dt;
 	}
+	int executeCommand(string text) {
+		vector<string> args = {};// loop over every and if
+		string currentArg = "";
+		for (int i = 0; i <= (int)text.length(); i++) {
+			if (i == (int)text.length() || text.at(i) == ' ') {
+				args.push_back(currentArg);
+				currentArg = "";
+			} else {
+				currentArg += text.at(i);
+			}
+		}
+		int argC = args.size();
+		if (args.at(0) == "tp" && (argC == 2 || argC == 3)) {
+			world.entities.at(world.self).pos.x = stof(args.at(1));
+			if (argC == 3) world.entities.at(world.self).pos.x = stof(args.at(2));
+		}
+		return 0;
+	}
 };
+GameState game;
+static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
+	if (game.typingMode == 0) {
+		if (action == GLFW_PRESS) {
+			if (key == GLFW_KEY_ESCAPE) {
+				game.playing = !game.playing;
+			} else
+			if (key == GLFW_KEY_Q) {
+				glfwSetWindowShouldClose(window, GLFW_TRUE);
+			}
+			else if (key == GLFW_KEY_W) controls.w = true;
+			else if (key == GLFW_KEY_A) controls.a = true;
+			else if (key == GLFW_KEY_S) controls.s = true;
+			else if (key == GLFW_KEY_D) controls.d = true;
+			else if (key == GLFW_KEY_SLASH) {
+				game.commandPromptOpen = true;
+				game.typingMode = 1;
+			}
+			else if (key == GLFW_KEY_1) game.world.entities.at(game.world.self).itemNumber = 0;
+			else if (key == GLFW_KEY_2) game.world.entities.at(game.world.self).itemNumber = 1;
+			else if (key == GLFW_KEY_3) game.world.entities.at(game.world.self).itemNumber = 2;
+			else if (key == GLFW_KEY_4) game.world.entities.at(game.world.self).itemNumber = 3;
+			else if (key == GLFW_KEY_5) game.world.entities.at(game.world.self).itemNumber = 4;
+			else if (key == GLFW_KEY_6) game.world.entities.at(game.world.self).itemNumber = 5;
+			else if (key == GLFW_KEY_7) game.world.entities.at(game.world.self).itemNumber = 6;
+			else if (key == GLFW_KEY_8) game.world.entities.at(game.world.self).itemNumber = 7;
+			else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
+			else if (key == GLFW_KEY_UP) controls.up = true;
+			else if (key == GLFW_KEY_DOWN) controls.down = true;
+			else if (key == GLFW_KEY_LEFT) controls.left = true;
+			else if (key == GLFW_KEY_RIGHT) controls.right = true;
+			else if (key == GLFW_KEY_E) controls.e = true;
+			else if (key == GLFW_KEY_SPACE) {
+				controls.space = true;
+			}
+			else if (key == GLFW_KEY_X) controls.xPressed = true;
+		}
+		else if (action == GLFW_RELEASE) {
+			if (key == GLFW_KEY_W) controls.w = false;
+			else if (key == GLFW_KEY_A) controls.a = false;
+			else if (key == GLFW_KEY_S) controls.s = false;
+			else if (key == GLFW_KEY_D) controls.d = false;
+			else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = false;
+			else if (key == GLFW_KEY_UP) controls.up = false;
+			else if (key == GLFW_KEY_DOWN) controls.down = false;
+			else if (key == GLFW_KEY_LEFT) controls.left = false;
+			else if (key == GLFW_KEY_RIGHT) controls.right = false;
+			else if (key == GLFW_KEY_E) controls.e = false;
+			else if (key == GLFW_KEY_SPACE) controls.space = false;
+		}
+	} else if (game.typingMode == 1) {
+		if (action == GLFW_PRESS) {
+			if (key == GLFW_KEY_A) game.commandPromptText += 'a';
+			else if (key == GLFW_KEY_B) game.commandPromptText += 'b';
+			else if (key == GLFW_KEY_C) game.commandPromptText += 'c';
+			else if (key == GLFW_KEY_D) game.commandPromptText += 'd';
+			else if (key == GLFW_KEY_E) game.commandPromptText += 'e';
+			else if (key == GLFW_KEY_F) game.commandPromptText += 'f';
+			else if (key == GLFW_KEY_G) game.commandPromptText += 'g';
+			else if (key == GLFW_KEY_H) game.commandPromptText += 'h';
+			else if (key == GLFW_KEY_I) game.commandPromptText += 'i';
+			else if (key == GLFW_KEY_J) game.commandPromptText += 'j';
+			else if (key == GLFW_KEY_K) game.commandPromptText += 'k';
+			else if (key == GLFW_KEY_L) game.commandPromptText += 'l';
+			else if (key == GLFW_KEY_M) game.commandPromptText += 'm';
+			else if (key == GLFW_KEY_N) game.commandPromptText += 'n';
+			else if (key == GLFW_KEY_O) game.commandPromptText += 'o';
+			else if (key == GLFW_KEY_P) game.commandPromptText += 'p';
+			else if (key == GLFW_KEY_Q) game.commandPromptText += 'q';
+			else if (key == GLFW_KEY_R) game.commandPromptText += 'r';
+			else if (key == GLFW_KEY_S) game.commandPromptText += 's';
+			else if (key == GLFW_KEY_T) game.commandPromptText += 't';
+			else if (key == GLFW_KEY_U) game.commandPromptText += 'u';
+			else if (key == GLFW_KEY_V) game.commandPromptText += 'v';
+			else if (key == GLFW_KEY_W) game.commandPromptText += 'w';
+			else if (key == GLFW_KEY_X) game.commandPromptText += 'x';
+			else if (key == GLFW_KEY_Y) game.commandPromptText += 'y';
+			else if (key == GLFW_KEY_Z) game.commandPromptText += 'z';
+			else if (key == GLFW_KEY_0) game.commandPromptText += '0';
+			else if (key == GLFW_KEY_1) game.commandPromptText += '1';
+			else if (key == GLFW_KEY_2) game.commandPromptText += '2';
+			else if (key == GLFW_KEY_3) game.commandPromptText += '3';
+			else if (key == GLFW_KEY_4) game.commandPromptText += '4';
+			else if (key == GLFW_KEY_5) game.commandPromptText += '5';
+			else if (key == GLFW_KEY_6) game.commandPromptText += '6';
+			else if (key == GLFW_KEY_7) game.commandPromptText += '7';
+			else if (key == GLFW_KEY_8) game.commandPromptText += '8';
+			else if (key == GLFW_KEY_9) game.commandPromptText += '9';
+			else if (key == GLFW_KEY_SPACE) game.commandPromptText += ' ';
+			else if (key == GLFW_KEY_BACKSPACE && (int)game.commandPromptText.size() > 0) game.commandPromptText.pop_back();
+			else if (key == GLFW_KEY_ENTER) {
+				game.executeCommand(game.commandPromptText);
+				game.commandPromptOpen = false;
+				game.typingMode = 0;
+			}
+		}
+	}
+}
+struct Button {
+	string text;
+	int action;
+	float x;
+	float y;
+	float width;
+	float height;
+	bool enabled;
+	bool visible;
+};
+vector<Button> buttons = {
+	{"SHOP", 0, 0.75f, 0.75f, 0.2f, 0.2f, true, true},
+	{"next skin", 1, -0.5f, 0.1f, 0.3f, 0.1f, true, false},
+	{"vsync: on", 2, -0.5f, 0.f, 0.3f, 0.1f, true, false},
+};
+void shopButton() {
+	game.shopOpen = !game.shopOpen;
+	buttons.at(1).visible = game.shopOpen;
+	buttons.at(2).visible = game.shopOpen;
+}
+void skinButton() {
+	int skinNumber = 0;
+	for (int i = 0; i < (int)skins.list.size(); i++) {
+		if (game.world.entities.at(game.world.self).material == "skin_" + skins.list.at(i)) {
+			skinNumber = i + 1;
+			if (skinNumber >= skins.list.size()) skinNumber = 0;
+			game.world.entities.at(game.world.self).material = "skin_" + skins.list.at(skinNumber);
+			cout << "[INFO] changed skin to: " + skins.list.at(skinNumber) << endl;
+			break;
+		}
+	}
+}
+bool vsync = true;
+void toggleVsync() {
+	if (vsync = !vsync) {
+		glfwSwapInterval(1);
+	} else {
+		glfwSwapInterval(0);
+	}
+}
+void vsyncButton() {
+	toggleVsync();
+	buttons.at(2).text = string("vsync: ") + (vsync ? "on" : "off");
+}
+static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
+	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
+		double xpos, ypos;
+		//getting cursor position
+		glfwGetCursorPos(window, &xpos, &ypos);
+		controls.mouseDown = true;
+		for (int i = 0; i < (int)buttons.size(); i++) {
+			if (buttons.at(i).visible && buttons.at(i).enabled && controls.clipMouse.x > buttons.at(i).x && controls.clipMouse.x < buttons.at(i).x + buttons.at(i).width && controls.clipMouse.y > buttons.at(i).y && controls.clipMouse.y < buttons.at(i).y + buttons.at(i).height) {
+				if (buttons.at(i).action == 0) shopButton();
+				if (buttons.at(i).action == 1) skinButton();
+				if (buttons.at(i).action == 2) vsyncButton();
+			}
+		}
+	}
+	if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
+		double xpos, ypos;
+		//getting cursor position
+		glfwGetCursorPos(window, &xpos, &ypos);
+		controls.mouseDown = false;
+	}
+	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
+		double xpos, ypos;
+		//getting cursor position
+		glfwGetCursorPos(window, &xpos, &ypos);
+		game.world.setTile((int)floor(controls.worldMouse.x), (int)floor(controls.worldMouse.y), {ttypes::stone});
+	}
+}
+static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
+	controls.mouse = {(float)xpos, (float)ypos};
+}
+static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
+	game.world.camera.zoomTarget /= pow(1.1, yoffset);
+}
+static void iconify_callback(GLFWwindow* window, int iconified) {
+	windowIconified = (iconified == GLFW_TRUE) ? true : false;
+}
+static void error_callback(int error, const char* description) {
+	fprintf(stderr, "[ERROR] %s\n", description);
+}
+
 class GameStateRenderer {
 public:
 	GameState* game;
 
 	float aspect;
 	GLuint vertexBuffer,elementBuffer;
+
+	struct Vertex {
+		float x, y, z;
+		float u, v;
+		float tileHealth;
+		float lr, lg, lb;
+	};
 
 	Shader solidV{"resources/shader/solid.vsh", GL_VERTEX_SHADER};
 	Shader guiV{"resources/shader/gui.vsh", GL_VERTEX_SHADER};
@@ -1205,54 +1514,7 @@ public:
 	Shader healthBarBgF{"resources/shader/health_bar_background.fsh", GL_FRAGMENT_SHADER};
 	Shader emptyF{"resources/shader/empty.fsh", GL_FRAGMENT_SHADER};
 
-	vector<Material> materials = {
-		{"sky"						, solidV.shader	, solidF.shader			, "resources/texture/sky.png"}, 
-		{"hills"					, solidV.shader	, solidF.shader			, "resources/texture/hills.png"}, 
-		{"dirt"						, solidV.shader	, solidF.shader			, "resources/texture/dirt.png"},
-		{"stone"					, solidV.shader	, solidF.shader			, "resources/texture/stone.png"},
-		{"wood"						, solidV.shader	, solidF.shader			, "resources/texture/wood.png"},
-		{"log"						, solidV.shader	, solidF.shader			, "resources/texture/log.png"},
-		{"leaves"					, solidV.shader	, solidF.shader			, "resources/texture/leaves.png"},
-		{"grass"					, solidV.shader	, solidF.shader			, "resources/texture/grass.png"},
-		{"sentry_shack_bottom"		, solidV.shader	, solidF.shader			, "resources/texture/sentry_shack_bottom.png"},
-		{"sentry_shack_middle"		, solidV.shader	, solidF.shader			, "resources/texture/sentry_shack_middle.png"},
-		{"sentry_shack_top"			, solidV.shader	, solidF.shader			, "resources/texture/sentry_shack_top.png"},
-		{"grass_left"				, solidV.shader	, solidF.shader			, "resources/texture/grass_left.png"},
-		{"grass_right"				, solidV.shader	, solidF.shader			, "resources/texture/grass_right.png"},
-		
-		{"player"					, solidV.shader	, solidF.shader			, "resources/texture/player.png"},
-		{"sentry"					, solidV.shader	, solidF.shader			, "resources/texture/sentry.png"},
-		{"mimic"					, solidV.shader	, solidF.shader			, "resources/texture/mimic.png"},
-		{"tile_cracks"				, solidV.shader	, solidF.shader			, "resources/texture/tile_cracks.png"},
-		{"select"					, solidV.shader	, solidF.shader			, "resources/texture/select.png"},
-		{"skull"					, solidV.shader	, solidF.shader			, "resources/texture/skull.png"},
-		{"damage_heart"				, solidV.shader	, solidF.shader			, "resources/texture/damage_heart.png"},
-		{"sweep"					, solidV.shader	, solidF.shader			, "resources/texture/sweep.png"},
-
-		{"sword"					, solidV.shader	, solidF.shader			, "resources/texture/sword.png"},
-		{"excalibur"				, solidV.shader	, solidF.shader			, "resources/texture/excalibur.png"},
-		{"bshorin"					, solidV.shader	, solidF.shader			, "resources/texture/bshorin.png"},
-		{"burger"					, solidV.shader	, solidF.shader			, "resources/texture/burger.png"},
-		{"lantern"					, solidV.shader	, solidF.shader			, "resources/texture/lantern.png"},
-		{"pickaxe"					, solidV.shader	, solidF.shader			, "resources/texture/pickaxe.png"},
-		{"gui_sword"				, guiV.shader	, guiF.shader			, "resources/texture/sword.png"},
-		{"gui_excalibur"			, guiV.shader	, guiF.shader			, "resources/texture/excalibur.png"},
-		{"gui_bshorin"				, guiV.shader	, guiF.shader			, "resources/texture/bshorin.png"},
-		{"gui_burger"				, guiV.shader	, guiF.shader			, "resources/texture/burger.png"},
-		{"gui_lantern"				, guiV.shader	, guiF.shader			, "resources/texture/lantern.png"},
-		{"gui_pickaxe"				, guiV.shader	, guiF.shader			, "resources/texture/pickaxe.png"},
-
-		{"items_slot"				, guiV.shader	, guiF.shader			, "resources/texture/items_slot.png"},
-		{"items_selected"			, guiV.shader	, guiF.shader			, "resources/texture/items_selected.png"},
-		{"health_green"				, guiV.shader	, healthBarGreenF.shader, "resources/texture/items_selected.png"},
-		{"health_bg"				, guiV.shader	, healthBarBgF.shader	, "resources/texture/items_selected.png"},
-		{"button"					, guiV.shader	, guiF.shader			, "resources/texture/button.png"},
-		{"button_disabled"			, guiV.shader	, guiGrayscaleF.shader	, "resources/texture/button.png"},
-		{"empty"					, solidV.shader	, emptyF.shader			, "resources/texture/dirt.png"},
-		{"gui_empty"				, guiV.shader	, emptyF.shader			, "resources/texture/dirt.png"},
-
-		{"gui_font"				      , fontV.shader , guiF.shader			, "resources/texture/font.png"}, 
-	};
+	vector<Material> materials;
 
 	vector<Vertex> vertices = {};
 	vector<vector<unsigned int>> materialIndices = {};
@@ -1260,13 +1522,65 @@ public:
 	int getMatID(string name) {
 		int size = (int)materials.size();
 		for (int i = 0; i < size; i++) {
-			if (name == materials[i].name) return i;
+			if (name == materials.at(i).name) return i;
 		}
 		return 0;
 	}
+	void addBothSpaceMaterial(string name, string texture) {
+		materials.push_back({name, solidV.shader, solidF.shader, texture});
+		materials.push_back({name + "_gui", guiV.shader, guiF.shader, texture});
+	}
 	GameStateRenderer(GameState* gam) {
 		game = gam;
-		
+		//append materials
+
+		materials.push_back({"sky"						, solidV.shader	, guiF.shader			, "resources/texture/sky.png"});
+		materials.push_back({"hills"					, solidV.shader	, solidF.shader			, "resources/texture/hills.png"});
+		materials.push_back({"cloud"					, solidV.shader	, solidF.shader			, "resources/texture/cloud.png"});
+		addBothSpaceMaterial("dirt"																, "resources/texture/dirt.png");
+		addBothSpaceMaterial("snow"																, "resources/texture/snow.png");
+		addBothSpaceMaterial("stone"															, "resources/texture/stone.png");
+		addBothSpaceMaterial("wood"																, "resources/texture/wood.png");
+		addBothSpaceMaterial("log"																, "resources/texture/log.png");
+		addBothSpaceMaterial("leaves"															, "resources/texture/leaves.png");
+		addBothSpaceMaterial("grass"															, "resources/texture/grass.png");
+		addBothSpaceMaterial("sentry_shack_bottom"												, "resources/texture/sentry_shack_bottom.png");
+		addBothSpaceMaterial("sentry_shack_middle"												, "resources/texture/sentry_shack_middle.png");
+		addBothSpaceMaterial("sentry_shack_top"													, "resources/texture/sentry_shack_top.png");
+		materials.push_back({"grass_left"				, solidV.shader	, solidF.shader			, "resources/texture/grass_left.png"});
+		materials.push_back({"grass_right"				, solidV.shader	, solidF.shader			, "resources/texture/grass_right.png"});
+		for (int i = 0; i < (int)skins.list.size(); i++) {
+			addBothSpaceMaterial("skin_" + skins.list.at(i), "resources/texture/skins/" + skins.list.at(i) + ".png");
+		}
+		materials.push_back({"sentry"					, solidV.shader	, solidF.shader			, "resources/texture/sentry.png"});
+		materials.push_back({"mimic"					, solidV.shader	, solidF.shader			, "resources/texture/mimic.png"});
+		materials.push_back({"tile_cracks"				, solidV.shader	, solidF.shader			, "resources/texture/tile_cracks.png"});
+		materials.push_back({"select"					, solidV.shader	, solidF.shader			, "resources/texture/select.png"});
+		materials.push_back({"skull"					, solidV.shader	, solidF.shader			, "resources/texture/skull.png"});
+		materials.push_back({"damage_heart"				, solidV.shader	, solidF.shader			, "resources/texture/damage_heart.png"});
+		materials.push_back({"sweep"					, solidV.shader	, solidF.shader			, "resources/texture/sweep.png"});
+		materials.push_back({"outline"					, solidV.shader	, solidF.shader			, "resources/texture/outline.png"});
+
+		addBothSpaceMaterial("sword"															, "resources/texture/sword.png");
+		addBothSpaceMaterial("excalibur"														, "resources/texture/excalibur.png");
+		addBothSpaceMaterial("bshorin"															, "resources/texture/bshorin.png");
+		addBothSpaceMaterial("burger"															, "resources/texture/burger.png");
+		addBothSpaceMaterial("antbread"															, "resources/texture/antbread.png");
+		addBothSpaceMaterial("lantern"															, "resources/texture/lantern.png");
+		addBothSpaceMaterial("pickaxe"															, "resources/texture/pickaxe.png");
+
+		materials.push_back({"items_slot"				, guiV.shader	, guiF.shader			, "resources/texture/items_slot.png"});
+		materials.push_back({"items_selected"			, guiV.shader	, guiF.shader			, "resources/texture/items_selected.png"});
+		materials.push_back({"health_green"				, guiV.shader	, healthBarGreenF.shader, "resources/texture/items_selected.png"});
+		materials.push_back({"health_bg"				, guiV.shader	, healthBarBgF.shader	, "resources/texture/items_selected.png"});
+		materials.push_back({"shop_bg"					, guiV.shader	, guiF.shader			, "resources/texture/shop_bg.png"});
+		materials.push_back({"button"					, guiV.shader	, guiF.shader			, "resources/texture/button.png"});
+		materials.push_back({"button_disabled"			, guiV.shader	, guiGrayscaleF.shader	, "resources/texture/button.png"});
+		materials.push_back({"empty"					, solidV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
+		materials.push_back({"gui_empty"				, guiV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
+
+		materials.push_back({"gui_font"				    , fontV.shader , guiF.shader			, "resources/texture/font.png"});
+
 		// create index buffers
 		for (int i = 0; i < (int)materials.size(); i++) {
 			materialIndices.push_back({});
@@ -1283,55 +1597,86 @@ public:
 	void buildThem() {
 		aspect = (float)width / (float)height;
 		clearVertices();
-		for (int x = 0; x < 100; x++) {
-			addRect((float)x * 150.f, 0.f, -10.f, 150.f, 30.f, getMatID("hills"));
+
+		addScreenRect(-50000.f, -10000.f, -5000.f, 100000.f, 20000.f, getMatID("sky"));
+		for (int x = -100; x < 100; x++) {
+			addRect((float)x * 150.f, 0.f, -15.f, 150.f, 30.f, getMatID("hills"));
 		}
-		for (int x = 0; x < game->world.worldWidth; x++) {
-			if ((float)x + 1.f < game->world.camera.left() - 2.f) continue;
-			if ((float)x > game->world.camera.right() + 2.f) break;
-			for (int y = 0; y < game->world.worldHeight; y++) {
-				if ((float)y + 1.f < game->world.camera.bottom() - 2.f) continue;
-				if ((float)y > game->world.camera.top() + 2.f) break;
-				float lightR = game->world.lightmap[x][y].r;
-				float lightG = game->world.lightmap[x][y].g;
-				float lightB = game->world.lightmap[x][y].b;
-				addTile(x, y, 0, game->world.tiles[x][y].type, lightR, lightG, lightB, false);
-				addTile(x, y, -2, game->world.bgTiles[x][y].type, lightR, lightG, lightB, true);
-				if (game->world.tiles[x][y].health < game->world.tiles[x][y].maxHealth) {
-					addRect((float)x, (float)y, 0.001f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.tiles[x][y].maxHealth - game->world.tiles[x][y].health) / game->world.tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
+		for (int i = 0; i < (int)game->world.clouds.size(); i++) {
+			addRect(game->world.clouds.at(i).r, game->world.clouds.at(i).g, game->world.clouds.at(i).b, 150.f, 75.f, getMatID("cloud"));
+		}
+		for (int i = 0; i < (int)game->world.sections.size(); i++) {
+			if (
+				(float)(game->world.sections.at(i).x * SECT_SIZE) > game->world.camera.right(0.f) ||
+				(float)((game->world.sections.at(i).x + 1) * SECT_SIZE) < game->world.camera.left(0.f) ||
+				(float)(game->world.sections.at(i).y * SECT_SIZE) > game->world.camera.top(0.f) ||
+				(float)((game->world.sections.at(i).y + 1) * SECT_SIZE) < game->world.camera.bottom(0.f)
+			) continue;
+			for (int x = 0; x < SECT_SIZE; x++) {
+				if ((float)x + 1.f + (float)(game->world.sections.at(i).x * SECT_SIZE) < game->world.camera.left(0.f) - 2.f) continue;
+				if ((float)x + (float)(game->world.sections.at(i).x * SECT_SIZE) > game->world.camera.right(0.f) + 2.f) break;
+				//addRect(game->world.sections.at(i).x * SECT_SIZE + x, game->world.gen[2].getVal((float)(game->world.sections.at(i).x * SECT_SIZE + x) / 5.f), 0.08f, 1.f, 0.2f, getMatID("sky"));
+				for (int y = 0; y < SECT_SIZE; y++) {
+					if ((float)y + 1.f + (float)(game->world.sections.at(i).y * SECT_SIZE) < game->world.camera.bottom(0.f) - 2.f) continue;
+					if ((float)y + (float)(game->world.sections.at(i).y * SECT_SIZE) > game->world.camera.top(0.f) + 2.f) break;
+					float lightR = game->world.sections.at(i).lightmap[x][y].r;
+					float lightG = game->world.sections.at(i).lightmap[x][y].g;
+					float lightB = game->world.sections.at(i).lightmap[x][y].b;
+					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, 0.f,  game->world.sections.at(i).tiles[x][y].type, lightR, lightG, lightB, false);
+					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, -2.f, game->world.sections.at(i).bgTiles[x][y].type, lightR, lightG, lightB, true);
+					if (game->world.sections.at(i).tiles[x][y].health < game->world.sections.at(i).tiles[x][y].maxHealth) {
+						addRect((float)(game->world.sections.at(i).x * SECT_SIZE + x), (float)(game->world.sections.at(i).y * SECT_SIZE + y), 0.001f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.sections.at(i).tiles[x][y].maxHealth - game->world.sections.at(i).tiles[x][y].health) / game->world.sections.at(i).tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
+					}
 				}
 			}
+			//addRect(game->world.sections.at(i).x * SECT_SIZE, game->world.sections.at(i).y * SECT_SIZE, 0.05f, SECT_SIZE, SECT_SIZE, getMatID("outline"));
 		}
 		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.002f, 1.f, 1.f, getMatID("select"));
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
-			Entity* e = &game->world.entities[i];
-			int fvx = game->world.entities[i].facingVector.x;
+			Entity* e = &game->world.entities.at(i);
+			int fvx = game->world.entities.at(i).facingVector.x;
 			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
 			float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.1f) : (e->pos.x + e->size.x / 2.f + 0.1f);
-			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->items[e->itemNumber].size.x * (fvx == -1 ? -1.f : 1.f), e->items[e->itemNumber].size.y, getMatID(e->items[e->itemNumber].material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
+			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->items.at(e->itemNumber).size.x * (fvx == -1 ? -1.f : 1.f), e->items.at(e->itemNumber).size.y, getMatID(e->items.at(e->itemNumber).material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
-			addRect(game->world.particles[i].pos.x - game->world.particles[i].size.x / 2.f, game->world.particles[i].pos.y - game->world.particles[i].size.y / 2.f, 0.004f, game->world.particles[i].size.x, game->world.particles[i].size.y, getMatID(game->world.particles[i].material));
+			addRect(game->world.particles.at(i).pos.x - game->world.particles.at(i).size.x / 2.f, game->world.particles.at(i).pos.y - game->world.particles.at(i).size.y / 2.f, 0.004f, game->world.particles.at(i).size.x, game->world.particles.at(i).size.y, getMatID(game->world.particles.at(i).material));
 		}
+		/*for (int i = 0; i < (int)game->world.photons.size(); i++) {
+			addTri(game->world.photons.at(i).x, game->world.photons.at(i).y, 0.005f, 0.1f, getMatID("snow"));
+		}*/
 
-		for (int i = 0; i < (int)game->world.entities[0].items.size(); i++) {
-			addScreenRect((float)i * 0.1f - 0.45f, -1.f, -0.1f, 0.1f, 0.1f, getMatID("gui_" + game->world.entities[0].items[i].material));
+		for (int i = 0; i < (int)game->world.entities.at(game->world.self).items.size(); i++) {
+			addScreenRect((float)i * 0.1f - 0.45f, -1.f, -0.099f, 0.1f, 0.1f, getMatID("items_slot"));
+			addScreenRect((float)i * 0.1f - 0.45f, -1.f, -0.1f, 0.1f, 0.1f, getMatID(game->world.entities.at(game->world.self).items.at(i).material + "_gui"));
 			addScreenRect((float)i * 0.1f - 0.45f, -0.99f, -0.101f, 0.095f, 0.01f, getMatID("health_bg"));
-			addScreenRect((float)i * 0.1f - 0.45f, -0.99f, -0.102f, 0.095f * game->world.entities[0].items[i].durability / game->world.entities[0].items[i].maxDurability, 0.01f, getMatID("health_green"));
+			addScreenRect((float)i * 0.1f - 0.45f, -0.99f, -0.102f, 0.095f * game->world.entities.at(game->world.self).items.at(i).durability / game->world.entities.at(game->world.self).items.at(i).maxDurability, 0.01f, getMatID("health_green"));
 		}
-		addScreenRect((float)game->world.entities[0].itemNumber * 0.1f - 0.45f, -1.f, -0.11f, 0.1f, 0.1f, getMatID("items_selected"));
-		addScreenRect(-0.5f, 0.9f, -0.11f, game->world.entities[0].health / game->world.entities[0].maxHealth, 0.1f, getMatID("health_green"));
+		addScreenRect((float)game->world.entities.at(game->world.self).itemNumber * 0.1f - 0.45f, -1.f, -0.11f, 0.1f, 0.1f, getMatID("items_selected"));
+		addScreenRect(-0.5f, 0.9f, -0.11f, game->world.entities.at(game->world.self).health / game->world.entities.at(game->world.self).maxHealth, 0.1f, getMatID("health_green"));
 		addScreenRect(-0.5f, 0.9f, -0.105f, 1.f, 0.1f, getMatID("health_bg"));
 
 		for (int i = 0; i < (int)buttons.size(); i++) {
-			addScreenRect(buttons[i].x, buttons[i].y, -0.11f, buttons[i].width, buttons[i].height, getMatID(buttons[i].enabled ? "button" : "button_disabled"));
-			addText(buttons[i].text, buttons[i].x, buttons[i].y + buttons[i].height / 2.f - 0.01f, -0.12f, 0.02f, 0.8f, buttons[i].width, false);
+			if (!buttons.at(i).visible) continue;
+			addScreenRect(buttons.at(i).x, buttons.at(i).y, -0.11f, buttons.at(i).width, buttons.at(i).height, getMatID(buttons.at(i).enabled ? "button" : "button_disabled"));
+			addTextLine(buttons.at(i).text, buttons.at(i).x + buttons.at(i).width / 2.f, buttons.at(i).y + buttons.at(i).height / 2.f - 0.01f, -0.12f, 0.02f, 0.8f, true);
+		}
+		if (game->shopOpen) {
+			addScreenRect(-0.8f, -0.8f, -0.09f, 1.6f, 1.6f, getMatID("shop_bg"));
+			addScreenRect(-0.8f, -0.8f, -0.1f, 0.1f, 0.2f, getMatID(game->world.entities.at(game->world.self).material + "_gui"));
+			addTextLine("SHOP", 0.f, 0.7f, -0.1f, 0.1f, 0.8f, true);
+		}
+		if (game->commandPromptOpen) {
+			addScreenRect(-1.f, -0.8f, -0.09f, 2.f, 0.2f, getMatID("button"));
+			addTextLine(game->commandPromptText, -0.8f, -0.7f, -0.1f, 0.05f, 0.8f, false);
 		}
 
 		addText(to_string(fps) + " FPS", -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText(string("X ") + ftos(game->world.entities.at(game->world.self).pos.x, 5), -0.9f, 0.75f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText(string("Y ") + ftos(game->world.entities.at(game->world.self).pos.y, 5), -0.9f, 0.6f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		int tris = 0;
 		for (int i = 0; i < (int)materialIndices.size(); i++) {
-			tris += (int)materialIndices[i].size() / 3;
+			tris += (int)materialIndices.at(i).size() / 3;
 		}
 		//addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		//addText("photons: " + to_string(game->world.photons.size()), -0.9f, -0.05f, -0.1f, 0.05f, 0.8f, 2.f, false);
@@ -1343,31 +1688,31 @@ public:
 		buildThem();
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertices[0]), &vertices[0], GL_STATIC_DRAW);
 		for (int i = 0; i < (int)materials.size(); i++) {
-			if ((int)materialIndices[i].size() > 0) renderMaterial(i);
+			if ((int)materialIndices.at(i).size() > 0) renderMaterial(i);
 		}
 
 	}
 	void renderMaterial(int id) {
 
 
-		glEnableVertexAttribArray(materials[id].vpos_location);
-		glVertexAttribPointer(materials[id].vpos_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)0);
+		glEnableVertexAttribArray(materials.at(id).vpos_location);
+		glVertexAttribPointer(materials.at(id).vpos_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)0);
 	
-		glEnableVertexAttribArray(materials[id].vtexcoord_location);
-		glVertexAttribPointer(materials[id].vtexcoord_location, 2, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 3));
+		glEnableVertexAttribArray(materials.at(id).vtexcoord_location);
+		glVertexAttribPointer(materials.at(id).vtexcoord_location, 2, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 3));
 	
-		glEnableVertexAttribArray(materials[id].vtilehealth_location);
-		glVertexAttribPointer(materials[id].vtilehealth_location, 1, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 5));
+		glEnableVertexAttribArray(materials.at(id).vtilehealth_location);
+		glVertexAttribPointer(materials.at(id).vtilehealth_location, 1, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 5));
 	
-		glEnableVertexAttribArray(materials[id].vlightcolor_location);
-		glVertexAttribPointer(materials[id].vlightcolor_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 6));
+		glEnableVertexAttribArray(materials.at(id).vlightcolor_location);
+		glVertexAttribPointer(materials.at(id).vlightcolor_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 6));
 
 		float ratio = (float)width / (float)height;
 		mat4x4 m, p, mvp;
 
-		glBufferData(GL_ELEMENT_ARRAY_BUFFER, materialIndices[id].size() * sizeof(unsigned int), &materialIndices[id][0], GL_STATIC_DRAW);
+		glBufferData(GL_ELEMENT_ARRAY_BUFFER, materialIndices.at(id).size() * sizeof(unsigned int), &materialIndices.at(id)[0], GL_STATIC_DRAW);
 		
-		glBindTexture(GL_TEXTURE_2D, materials[id].texture);
+		glBindTexture(GL_TEXTURE_2D, materials.at(id).texture);
 
 		mat4x4_identity(m);
 		//mat4x4_scale_aniso(m, m, ratio, 1.f, 1.f);
@@ -1376,28 +1721,40 @@ public:
 		mat4x4_rotate_Y(m, m, game->world.camera.rotation.y);
 		mat4x4_rotate_Z(m, m, game->world.camera.rotation.z);*/
 		//mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
-		mat4x4_perspective(p, 1.57f, ratio, 0.1f, 20000.f);
+		mat4x4_perspective(p, 1.57f, ratio, 0.01f, 100000.f);
 		mat4x4_mul(mvp, p, m);
 
-		glUseProgram(materials[id].program);
+		glUseProgram(materials.at(id).program);
 
-		glUniform1i(materials[id].texture1_location, 0);
-		glUniform1f(materials[id].time_location, game->world.time);
-		glUniformMatrix4fv(materials[id].mvp_location, 1, GL_FALSE, (const GLfloat*)mvp);
-		glDrawElements(GL_TRIANGLES, materialIndices[id].size(), GL_UNSIGNED_INT, (void*)0);
+		glUniform1i(materials.at(id).texture1_location, 0);
+		glUniform1f(materials.at(id).time_location, game->world.time);
+		glUniformMatrix4fv(materials.at(id).mvp_location, 1, GL_FALSE, (const GLfloat*)mvp);
+		glDrawElements(GL_TRIANGLES, materialIndices.at(id).size(), GL_UNSIGNED_INT, (void*)0);
 	}
 private:
 	void clearVertices() {
 		vertices.clear();
 		for (int i = 0; i < (int)materialIndices.size(); i++) {
-			materialIndices[i].clear();
+			materialIndices.at(i).clear();
 		}
 	}
 
-	void addRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
-		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
+	void addTri(float x, float y, float z, float size, int matId) {
+		if (x < game->world.camera.left(z) || x > game->world.camera.right(z) || y < game->world.camera.bottom(z) || y > game->world.camera.top(z)) return;
 		unsigned int end = vertices.size();
-		materialIndices[matId].insert(materialIndices[matId].end(), {
+		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
+			0U+end, 1U+end, 2U+end
+		});
+		vertices.insert(vertices.end(), {
+			{x+0.8660254f * size, y - 0.5f * size, z, 1.f, -.5f, 1.f, 1.f, 1.f, 1.f},
+			{x-0.8660254f * size, y - 0.5f * size, z, -1.f, -.5f, 1.f, 1.f, 1.f, 1.f},
+			{x                  , y + size       , z, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f}
+		});
+	}
+	void addRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
+		if (x + w < game->world.camera.left(z) || x > game->world.camera.right(z) || y + h < game->world.camera.bottom(z) || y > game->world.camera.top(z)) return;
+		unsigned int end = vertices.size();
+		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1410,7 +1767,7 @@ private:
 	}
 	void addScreenRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		unsigned int end = vertices.size();
-		materialIndices[matId].insert(materialIndices[matId].end(), {
+		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1422,9 +1779,9 @@ private:
 		});
 	}
 	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB) {
-		if (x + w < game->world.camera.left() + z || x > game->world.camera.right() - z || y + h < game->world.camera.bottom() + z || y > game->world.camera.top() - z) return;
+		if (x + w < game->world.camera.left(z) + z || x > game->world.camera.right(z) - z || y + h < game->world.camera.bottom(z) + z || y > game->world.camera.top(z) - z) return;
 		unsigned int end = vertices.size();
-		materialIndices[matId].insert(materialIndices[matId].end(), {
+		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1454,6 +1811,9 @@ private:
 				}
 			}*/
 			break;
+			case ttypes::snow:
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("snow"), 1.f, lightR, lightG, lightB);
+			break;
 			case ttypes::stone:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB);
 			break;
@@ -1478,9 +1838,9 @@ private:
 		}
 	}
 	void addRotatedRect(float x, float y, float z, float w, float h, int matId, float theta, float originX, float originY) {
-		if (x + w < game->world.camera.left() || x > game->world.camera.right() || y + h < game->world.camera.bottom() || y > game->world.camera.top()) return;
+		if (x + w < game->world.camera.left(z) || x > game->world.camera.right(z) || y + h < game->world.camera.bottom(z) || y > game->world.camera.top(z)) return;
 		unsigned int end = vertices.size();
-		materialIndices[matId].insert(materialIndices[matId].end(), {
+		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1503,10 +1863,115 @@ private:
 			{rectVerts[3].x, rectVerts[3].y, z, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f}
 		});
 	};
+	Vec2 getCharacterCoords(char c) {
+		Vec2 coords{31.f, 4.f};
+		switch (c) {
+			case 'a':coords = {0.f, 0.f};break;
+			case 'b':coords = {1.f, 0.f};break;
+			case 'c':coords = {2.f, 0.f};break;
+			case 'd':coords = {3.f, 0.f};break;
+			case 'e':coords = {4.f, 0.f};break;
+			case 'f':coords = {5.f, 0.f};break;
+			case 'g':coords = {6.f, 0.f};break;
+			case 'h':coords = {7.f, 0.f};break;
+			case 'i':coords = {8.f, 0.f};break;
+			case 'j':coords = {9.f, 0.f};break;
+			case 'k':coords = {10.f, 0.f};break;
+			case 'l':coords = {11.f, 0.f};break;
+			case 'm':coords = {12.f, 0.f};break;
+			case 'n':coords = {13.f, 0.f};break;
+			case 'o':coords = {14.f, 0.f};break;
+			case 'p':coords = {15.f, 0.f};break;
+			case 'q':coords = {16.f, 0.f};break;
+			case 'r':coords = {17.f, 0.f};break;
+			case 's':coords = {18.f, 0.f};break;
+			case 't':coords = {19.f, 0.f};break;
+			case 'u':coords = {20.f, 0.f};break;
+			case 'v':coords = {21.f, 0.f};break;
+			case 'w':coords = {22.f, 0.f};break;
+			case 'x':coords = {23.f, 0.f};break;
+			case 'y':coords = {24.f, 0.f};break;
+			case 'z':coords = {25.f, 0.f};break;
+
+			case '1':coords = {0.f, 2.f};break;
+			case '2':coords = {1.f, 2.f};break;
+			case '3':coords = {2.f, 2.f};break;
+			case '4':coords = {3.f, 2.f};break;
+			case '5':coords = {4.f, 2.f};break;
+			case '6':coords = {5.f, 2.f};break;
+			case '7':coords = {6.f, 2.f};break;
+			case '8':coords = {7.f, 2.f};break;
+			case '9':coords = {8.f, 2.f};break;
+			case '0':coords = {9.f, 2.f};break;
+			
+			case 'A':coords = {0.f, 1.f};break;
+			case 'B':coords = {1.f, 1.f};break;
+			case 'C':coords = {2.f, 1.f};break;
+			case 'D':coords = {3.f, 1.f};break;
+			case 'E':coords = {4.f, 1.f};break;
+			case 'F':coords = {5.f, 1.f};break;
+			case 'G':coords = {6.f, 1.f};break;
+			case 'H':coords = {7.f, 1.f};break;
+			case 'I':coords = {8.f, 1.f};break;
+			case 'J':coords = {9.f, 1.f};break;
+			case 'K':coords = {10.f, 1.f};break;
+			case 'L':coords = {11.f, 1.f};break;
+			case 'M':coords = {12.f, 1.f};break;
+			case 'N':coords = {13.f, 1.f};break;
+			case 'O':coords = {14.f, 1.f};break;
+			case 'P':coords = {15.f, 1.f};break;
+			case 'Q':coords = {16.f, 1.f};break;
+			case 'R':coords = {17.f, 1.f};break;
+			case 'S':coords = {18.f, 1.f};break;
+			case 'T':coords = {19.f, 1.f};break;
+			case 'U':coords = {20.f, 1.f};break;
+			case 'V':coords = {21.f, 1.f};break;
+			case 'W':coords = {22.f, 1.f};break;
+			case 'X':coords = {23.f, 1.f};break;
+			case 'Y':coords = {24.f, 1.f};break;
+			case 'Z':coords = {25.f, 1.f};break;
+			
+			case '!':coords = {26.f, 0.f};break;
+			case '@':coords = {27.f, 0.f};break;
+			case '#':coords = {28.f, 0.f};break;
+			case '$':coords = {29.f, 0.f};break;
+			case '%':coords = {30.f, 0.f};break;
+			case '^':coords = {31.f, 0.f};break;
+			case '&':coords = {26.f, 1.f};break;
+			case '*':coords = {27.f, 1.f};break;
+			case '(':coords = {28.f, 1.f};break;
+			case ')':coords = {29.f, 1.f};break;
+			case '-':coords = {30.f, 1.f};break;
+			case '=':coords = {31.f, 1.f};break;
+			
+			case '`':coords = {10.f, 2.f};break;
+			case '~':coords = {11.f, 2.f};break;
+			case '_':coords = {12.f, 2.f};break;
+			case '+':coords = {13.f, 2.f};break;
+			case '[':coords = {14.f, 2.f};break;
+			case ']':coords = {15.f, 2.f};break;
+			case '{':coords = {16.f, 2.f};break;
+			case '}':coords = {17.f, 2.f};break;
+			case '\\':coords = {18.f, 2.f};break;
+			case '|':coords = {19.f, 2.f};break;
+			case ';':coords = {20.f, 2.f};break;
+			case '\'':coords = {21.f, 2.f};break;
+			case ':':coords = {22.f, 2.f};break;
+			case '"':coords = {23.f, 2.f};break;
+			case ',':coords = {24.f, 2.f};break;
+			case '.':coords = {25.f, 2.f};break;
+			case '<':coords = {26.f, 2.f};break;
+			case '>':coords = {27.f, 2.f};break;
+			case '/':coords = {28.f, 2.f};break;
+			case '?':coords = {29.f, 2.f};break;
+			case ' ':coords = {30.f, 2.f};break;
+		};
+		return coords;
+	};
 	void addCharacter(char character, float x, float y, float z, float w) {
 		Vec2 uv = getCharacterCoords(character);
 		unsigned int end = vertices.size();
-		materialIndices[getMatID("gui_font")].insert(materialIndices[getMatID("gui_font")].end(), {
+		materialIndices.at(getMatID("gui_font")).insert(materialIndices.at(getMatID("gui_font")).end(), {
 			0U+end, 2U+end, 1U+end,
 			1U+end, 2U+end, 3U+end
 		});
@@ -1523,93 +1988,18 @@ private:
 			float wrapX = fmod(noWrapX, maxWidth);
 			if (centered) wrapX -= maxWidth / 4.f;
 			addCharacter(text.at(i), wrapX + x, y - floor(noWrapX / maxWidth) * w * 1.6f, z, w * 1.5f);
-			z -= 0.001;
+			z -= 0.001f;
+		}
+	}
+	void addTextLine(string text, float x, float y, float z, float w, float spacing, bool centered) {
+		for (int i = 0; i < (int)text.length(); i++) {
+			float noWrapX = (float)i * w * spacing;
+			if (centered) noWrapX -= (float)text.length() * w * spacing / 2.f;
+			addCharacter(text.at(i), noWrapX + x, y - w * 1.6f, z, w * 1.5f);
+			z -= 0.001f;
 		}
 	}
 };
-GameState game;
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
-	if (action == GLFW_PRESS) {
-		if (key == GLFW_KEY_ESCAPE) {
-			game.playing = !game.playing;
-		} else
-		if (key == GLFW_KEY_Q) {
-			glfwSetWindowShouldClose(window, GLFW_TRUE);
-		}
-		else if (key == GLFW_KEY_W) controls.w = true;
-		else if (key == GLFW_KEY_A) controls.a = true;
-		else if (key == GLFW_KEY_S) controls.s = true;
-		else if (key == GLFW_KEY_D) controls.d = true;
-		else if (key == GLFW_KEY_1) game.world.entities[0].itemNumber = 0;
-		else if (key == GLFW_KEY_2) game.world.entities[0].itemNumber = 1;
-		else if (key == GLFW_KEY_3) game.world.entities[0].itemNumber = 2;
-		else if (key == GLFW_KEY_4) game.world.entities[0].itemNumber = 3;
-		else if (key == GLFW_KEY_5) game.world.entities[0].itemNumber = 4;
-		else if (key == GLFW_KEY_6) game.world.entities[0].itemNumber = 5;
-		else if (key == GLFW_KEY_7) game.world.entities[0].itemNumber = 6;
-		else if (key == GLFW_KEY_8) game.world.entities[0].itemNumber = 7;
-		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
-		else if (key == GLFW_KEY_UP) controls.up = true;
-		else if (key == GLFW_KEY_DOWN) controls.down = true;
-		else if (key == GLFW_KEY_LEFT) controls.left = true;
-		else if (key == GLFW_KEY_RIGHT) controls.right = true;
-		else if (key == GLFW_KEY_E) controls.e = true;
-		else if (key == GLFW_KEY_SPACE) {
-			controls.space = true;
-		}
-		else if (key == GLFW_KEY_X) controls.xPressed = true;
-	}
-	else if (action == GLFW_RELEASE) {
-		if (key == GLFW_KEY_W) controls.w = false;
-		else if (key == GLFW_KEY_A) controls.a = false;
-		else if (key == GLFW_KEY_S) controls.s = false;
-		else if (key == GLFW_KEY_D) controls.d = false;
-		else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = false;
-		else if (key == GLFW_KEY_UP) controls.up = false;
-		else if (key == GLFW_KEY_DOWN) controls.down = false;
-		else if (key == GLFW_KEY_LEFT) controls.left = false;
-		else if (key == GLFW_KEY_RIGHT) controls.right = false;
-		else if (key == GLFW_KEY_E) controls.e = false;
-		else if (key == GLFW_KEY_SPACE) controls.space = false;
-	}
-}
-static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
-	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
-		double xpos, ypos;
-		//getting cursor position
-		glfwGetCursorPos(window, &xpos, &ypos);
-		controls.mouseDown = true;
-		for (int i = 0; i < (int)buttons.size(); i++) {
-			if (buttons[i].enabled && controls.clipMouse.x > buttons[i].x && controls.clipMouse.x < buttons[i].x + buttons[i].width && controls.clipMouse.y > buttons[i].y && controls.clipMouse.y < buttons[i].y + buttons[i].height) {
-				claco();
-			}
-		}
-	}
-	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_RELEASE) {
-		double xpos, ypos;
-		//getting cursor position
-		glfwGetCursorPos(window, &xpos, &ypos);
-		controls.mouseDown = false;
-	}
-	if (button == GLFW_MOUSE_BUTTON_RIGHT && action == GLFW_PRESS) {
-		double xpos, ypos;
-		//getting cursor position
-		glfwGetCursorPos(window, &xpos, &ypos);
-		game.world.setTile((int)controls.worldMouse.x, (int)controls.worldMouse.y, {ttypes::stone});
-	}
-}
-static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
-	controls.mouse = {(float)xpos, (float)ypos};
-}
-static void scroll_callback(GLFWwindow* window, double xoffset, double yoffset) {
-	game.world.camera.zoom /= pow(1.1, yoffset);
-}
-static void iconify_callback(GLFWwindow* window, int iconified) {
-	windowIconified = (iconified == GLFW_TRUE) ? true : false;
-}
-static void error_callback(int error, const char* description) {
-	fprintf(stderr, "[ERROR] %s\n", description);
-}
 
 int main(void) {
 	glfwSetErrorCallback(error_callback);
@@ -1661,7 +2051,6 @@ int main(void) {
 			double newFrameTime = glfwGetTime();
 			frameTime = newFrameTime - lastFrameTime;
 			lastFrameTime = newFrameTime;
-	
 			fpsCounter++;
 			if (glfwGetTime() - lastFpsTime > 1.) {
 				lastFpsTime = glfwGetTime();
@@ -1685,7 +2074,7 @@ int main(void) {
 		glfwPollEvents();
 	}
 	for (int i = 0; i < (int)renderer.materials.size(); i++) {
-		glDeleteTextures(1, &renderer.materials[i].texture);
+		glDeleteTextures(1, &renderer.materials.at(i).texture);
 	}
 	soundDoer.exit();
 	glfwDestroyWindow(window);

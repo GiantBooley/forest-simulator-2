@@ -1,0 +1,1 @@
+g++ main.cpp glad.c -Llib -Iinclude -lglfw3 -lopenal -o build/main && cd build && ./main || cd ..
