@@ -211,6 +211,7 @@ class Controls {
 	   bool space = false;
 	   bool mouseDown = false;
 	   bool xPressed = false;
+	   bool bPressed = false;
 	   bool e = false;
 	   Vec2 mouse{0.f, 0.f};
 	   Vec2 worldMouse{0.f, 0.f};
@@ -279,7 +280,7 @@ string getFileNameFromPath(string path) {
 string getFileText(string path) {
 	ifstream file{path};
 	if (!file.is_open()) {
-		return "";
+		return ""; // asdasd fix do fix
 		cerr << "[ERROR] file \"" << path << "\" not found" << endl;
 		file.close();
 	}
@@ -342,7 +343,7 @@ class Material {
 
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
 			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-			
+
 			textureBytes = stbi_load(textureFile.c_str(), &textureWidth, &textureHeight, &textureColorChannels, 0);
 			if (textureBytes) {
 				glTexImage2D(GL_TEXTURE_2D, 0, textureColorChannels == 4 ? GL_RGBA : GL_RGB, textureWidth, textureHeight, 0, textureColorChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, textureBytes);
@@ -351,14 +352,14 @@ class Material {
 			} else {
 				cerr << "[ERROR] Failed loading texture \"" << textureFile << "\"" << endl;
 			};
-			stbi_image_free(textureBytes);
 
+			stbi_image_free(textureBytes);
 			program = glCreateProgram();
 		
 			glAttachShader(program, vertexShader);
 			glAttachShader(program, fragmentShader);
 			glLinkProgram(program);
-			
+
 			mvp_location = glGetUniformLocation(program, "MVP");
 			texture1_location = glGetUniformLocation(program, "texture1");
 			time_location = glGetUniformLocation(program, "time");
@@ -371,7 +372,17 @@ class Material {
 int newEntityID = 0;
 namespace itypes {
 	enum itypes {
-		none, sword, bshorin, excalibur, burger, lantern, pickaxe, antbread
+		none, sword, excalibur, burger, lantern, pickaxe, antbread, dirt, snow, stone, wood, log, leaves
+	};
+}
+namespace etypes {
+	enum etypes {
+		player, sentry, mimic, merchant, item
+	};
+}
+namespace ttypes {
+	enum types {
+		none,air,dirt,snow,stone,wood,log,leaves,sentry_shack_bottom,sentry_shack_middle,sentry_shack_top
 	};
 }
 class Item {
@@ -382,7 +393,7 @@ class Item {
 	float damage;
 	string material;
 	Vec2 size;
-	bool isEdible = false;
+	bool isEdible;
 	float eatingHealth = 3.f;
 	Vec3 emission{0.f, 0.f, 0.f};
 
@@ -400,74 +411,155 @@ class Item {
 			break;
 
 			case itypes::sword:
-			durability = 600.f;
-			damage = 1.5f;
-			material = "sword";
-			size = {0.3f, 1.f};
-			punchDelay = 0.5f;
-			break;
-
-			case itypes::bshorin:
-			durability = 60.f;
-			damage = 10.f;
-			material = "bshorin";
-			size = {1.f, 1.f};
-			punchDelay = 0.6f;
-			break;
+						break;
 
 			case itypes::excalibur:
-			durability = 100.f;
-			damage = 1000.f;
-			material = "excalibur";
-			size = {1.f, 1.5f};
-			punchDelay = 0.12f;
-			emission = {0.1f, 0.02f, 0.02f};
-			break;
+						break;
 
 			case itypes::burger:
-			durability = 5.f;
-			damage = 0.1f;
-			material = "burger";
-			size = {1.f, 1.f};
-			punchDelay = 1.f;
-			isEdible = true;
-			eatingHealth = 3.f;
-			break;
+					break;
 
 			case itypes::lantern:
-			durability = 5.f;
-			damage = 0.1f;
-			material = "lantern";
-			size = {1.f, 1.f};
-			punchDelay = 1.f;
-			emission = {0.3f, 0.15f, 0.15f};
-			break;
+					break;
 
 			case itypes::pickaxe:
-			durability = 250.f;
-			damage = 20.f;
-			material = "pickaxe";
-			size = {1.f, 1.f};
-			punchDelay = 1.25f;
-			break;
+						break;
 
 			case itypes::antbread:
-			durability = 3.f;
-			damage = 0.1f;
-			material = "antbread";
-			size = {1.f, 1.f};
-			punchDelay = 1.f;
-			isEdible = true;
-			eatingHealth = 1.5f;
+						break;
+
+			/* ======================= */
+				//BLOCKs
+			/* ========================*/
+
+			case itypes::snow:
+			
 			break;
+
+			case itypes::stone:
+						break;
+
+			case itypes::dirt:
+						break;
+
+			case itypes::wood:
+			
+			break;
+
+			case itypes::log:
+						break;
 		}
 		maxDurability = durability;
 	}
 };
-namespace etypes {
-	enum etypes {
-		player,sentry,mimic
-	};
+class ItemSword : public Item {
+	ItemSword() : Item() {
+		durability = 70.f;
+		damage = 1.5f;
+		material = "sword";
+		size = {0.3f, 1.f};
+		punchDelay = 0.5f;
+	}
+}
+class ItemExcalibur : public Item {
+	ItemExcalibur() : Item() {
+		durability = 100.f;
+		damage = 1000.f;
+		material = "excalibur";
+		size = {1.f, 1.5f};
+		punchDelay = 0.12f;
+		emission = {0.1f, 0.02f, 0.02f};
+	}
+}
+class ItemBurger : public Item {
+	ItemBurger() : Item() {
+		durability = 5.f;
+		damage = 0.1f;
+		material = "burger";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+		isEdible = true;
+		eatingHealth = 3.f;
+	}
+}
+class ItemLantern : public Item {
+	ItemLantern() : Item() {
+		durability = 5.f;
+		damage = 0.1f;
+		material = "lantern";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+		emission = {0.3f, 0.15f, 0.15f};
+
+	}
+}
+class ItemPickaxe : public Item {
+	ItemPickaxe() : Item() {
+		durability = 250.f;
+		damage = 20.f;
+		material = "pickaxe";
+		size = {1.f, 1.f};
+		punchDelay = 1.25f;
+
+	}
+}
+class ItemAntbread : public Item {
+	ItemAntbread() : Item() {
+		durability = 3.f;
+		damage = 0.1f;
+		material = "antbread";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+		isEdible = true;
+		eatingHealth = 1.5f;
+
+	}
+}
+class ItemSnow : public Item {
+	ItemSnow() : Item() {
+		durability = 25.f;
+		damage = 0.5f;
+		material = "snow";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+	}
+}
+class ItemStone : public Item {
+	ItemStone() : Item() {
+		durability = 25.f;
+		damage = 0.5f;
+		material = "stone";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+	}
+}
+class ItemDirt : public Item {
+	ItemDirt() : Item() {
+		durability = 25.f;
+		damage = 0.5f;
+		material = "dirt";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+
+	}
+}
+class ItemWood : public Item {
+	ItemWood() : Item() {
+		durability = 25.f;
+		damage = 0.5f;
+		material = "wood";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+	}
+}
+class ItemLog : public Item {
+	ItemLog() : Item() {
+		durability = 25.f;
+		damage = 0.5f;
+		material = "log";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+	}
 }
 class SkinList {
 	public:
@@ -488,8 +580,9 @@ public:
 	bool onGround = false;
 	string material;
 	int type;
-	int controlsType; // 0-wasd,1-follow near player
+	int controlsType; // 0-wasd,1-follow near player,2-mimic movement,3-none
 	float health;
+	bool isDamagable = true;
 	float maxHealth;
 	float speed = 1.6f;
 	vector<Item> items;
@@ -498,41 +591,71 @@ public:
 	float punchDelayTimer = 0.f;
 	float swingRotation = 0.f;
 	float isSwinging = false;
+	bool canPickUpStuff = false;
+	float damageRedness = 0.f;
+	float particleEmitTimer = 0.f;
+	float particleEmitDelay = 0.1f;
+	float age = 0.f;
 	
-	Entity(int typea) {
-		type = typea;
+	Entity(string maaterial, int caontrolsType, Vec2 saize, float haealth, bool caanPickUpStuff) {
 		for (int i = 0; i < 8; i++) {
-			items.push_back({i == 0 ? itypes::sword : itypes::none});
+			items.push_back({itypes::none});
 		}
-		items.at(1) = {itypes::bshorin};
-		items.at(2) = {itypes::excalibur};
-		items.at(3) = {itypes::burger};
-		items.at(4) = {itypes::lantern};
-		items.at(5) = {itypes::pickaxe};
-		items.at(6) = {itypes::antbread};
-		switch (type) {
-			case etypes::player:
-				material = "skin_" + skins.list.at(1); 
-				controlsType = 0;
-				size = {0.5f, 1.8f};
-				health = 10.f;
-				break;
-			case etypes::sentry:
-				material = "sentry";
-				controlsType = 1;
-				size = {0.6f, 2.8f};
-				health = 10.f;
-				break;
-			case etypes::mimic:
-				material = "mimic";
-				controlsType = 0;
-				size = {0.6f, 2.8f};
-				health = 10.f;
-				break;
-		}
+		material = maaterial;
+		controlsType = caontrolsType;
+		size = saize;
+		health = haealth;
+		canPickUpStuff = caanPickUpStuff;
+
 		maxHealth = health;
 	}
 };
+class EntityPlayer : public Entity {
+	public:
+		EntityPlayer() : Entity("skin_" + skins.list.at(1), 0, {0.5f, 1.8f}, 10.f, true) {
+			items.at(0) = {itypes::sword};
+			items.at(1) = {itypes::excalibur};
+			items.at(2) = {itypes::burger};
+			items.at(3) = {itypes::lantern};
+			items.at(4) = {itypes::pickaxe};
+			items.at(5) = {itypes::antbread};
+			items.at(6) = {itypes::snow};
+			type = etypes::player;
+		}
+};
+class EntitySentry : public Entity {
+	public:
+		EntitySentry() : Entity("sentry", 1, {0.6f, 2.8f}, 10.f, false) {
+			items.at(0) = {itypes::sword};
+			type = etypes::sentry;
+		}
+};
+class EntityMimic : public Entity {
+	public:
+		EntityMimic() : Entity("mimic", 2, {0.6f, 2.8f}, 10.f, false) {
+			items.at(0) = {itypes::sword};
+			type = etypes::mimic;
+		}
+};
+class EntityMerchant : public Entity {
+	public:
+		vector<Item> stock;
+		EntityMerchant() : Entity("merchant", 1, {0.5f, 1.8f}, 10.f, false) {
+			items.at(0) = {itypes::sword};
+			type = etypes::merchant;
+			for (int i = 0; i < 10; i++) {
+				stock.push_back({itypes::dirt});
+			}
+		}
+};
+class EntityItem : public Entity {
+	public:
+		EntityItem() : Entity("empty", 3, {0.5f, 0.5f}, 10123.f, false) {
+			isDamagable = false;
+			type = etypes::item;
+		}
+};
+
 struct EntityCollision {
 	bool collided;
 	vector<iVec2> tileCollisions;
@@ -540,21 +663,22 @@ struct EntityCollision {
 	Entity* entity1;
 	Entity* entity2;
 };
-namespace ttypes {
-	enum types {
-		air,dirt,snow,stone,wood,log,leaves,sentry_shack_bottom,sentry_shack_middle,sentry_shack_top
-	};
-}
 class Tile {
 	public:
 	int type;
 	float health = 1.f;
 	float maxHealth;
 	float friction = 0.5f;
-	bool isSolid;
+	bool isSolid = false;
+	Item drops{itypes::none};
 	Tile(int atype) {
 		type = atype;
 		switch (type) {
+			case ttypes::none:
+				health = 11111111.f;
+				friction = 0.f;
+				isSolid = false;
+				break;
 			case ttypes::air:
 				health = 43289.f;
 				friction = 0.f;
@@ -564,6 +688,7 @@ class Tile {
 				health = 3.f;
 				friction = 0.95f;
 				isSolid = true;
+				drops = {itypes::dirt};
 				break;
 			case ttypes::snow:
 				health = 1.5f;
@@ -574,21 +699,25 @@ class Tile {
 				health = 60.f;
 				friction = 0.95f;
 				isSolid = true;
+				drops = {itypes::stone};
 				break;
 			case ttypes::wood:
 				health = 7.f;
 				friction = 0.9f;
 				isSolid = true;
+				drops = {itypes::wood};
 				break;
 			case ttypes::log:
 				health = 10.f;
 				friction = 0.9f;
 				isSolid = true;
+				drops = {itypes::log};
 				break;
 			case ttypes::leaves:
 				health = 0.5f;
 				friction = 0.8f;
 				isSolid = true;
+				drops = {itypes::leaves};
 				break;
 			case ttypes::sentry_shack_bottom:
 				health = 13.f;
@@ -654,7 +783,7 @@ struct Photon {
 	float x, y, xv, yv;
 	float r, g, b;
 };
-static const int SECT_SIZE = 32;
+static const int SECT_SIZE = 128;
 class TileSection {
 public:
 	int x;
@@ -701,7 +830,7 @@ struct QueueTile {
 };
 class World {
 	public:
-	vector<Entity> entities = {};
+	vector<Entity*> entities;
 	int self = -1;
 	vector<Particle> particles = {};
 	Camera camera;
@@ -724,8 +853,8 @@ class World {
 		for (int i = 0; i < 500; i++) {
 			clouds.push_back({randFloat() * 10000.f, randFloat() * 10.f + 20.f, randFloat() * -3000.f - 10.f});
 		}
-		Entity player{etypes::player};
-		player.pos.y = getGeneratorHeight(player.pos.x) + 5.f;
+		Entity* player = new EntityPlayer();
+		player->pos.y = getGeneratorHeight(player->pos.x) + 5.f;
 		spawnEntity(player);
 	}
 	float getGeneratorHeight(float x) {
@@ -740,7 +869,7 @@ class World {
 	Tile generateTile(int x, int y, float heightFake, bool hasHeight) {
 		//return {y < 16};
 		float height = hasHeight ? heightFake : getGeneratorHeight(x);
-		int type = y < round(height) ? (y < round(height) - 10.f ? ttypes::stone : ttypes::dirt) : ttypes::air;
+		int type = y < round(height) ? (y < round(height) - 10.f ? ttypes::stone : (y > 20 ? ttypes::snow : ttypes::dirt)) : ttypes::air;
 		if (perlin.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.25f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.1f) type = ttypes::air;
 		return {type};
 	}
@@ -806,10 +935,10 @@ class World {
 		// 2: tree n sentry shack generation
 		for (int rx = 0; rx < SECT_SIZE; rx++) {
 			for (int ry = 0; ry < SECT_SIZE; ry++) {
-				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type != ttypes::air && randFloat() < 0.001f) {
+				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type != ttypes::air && randFloat() < 0.01f) {
 					setLocalGSTile(rx, ry, {ttypes::sentry_shack_bottom});
 					setLocalGSTile(rx, ry + 1, {ttypes::sentry_shack_middle});
-					setLocalGSTile(rx, ry + 1, {ttypes::sentry_shack_top});
+					setLocalGSTile(rx, ry + 2, {ttypes::sentry_shack_top});
 				}
 				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type == ttypes::dirt && randFloat() < 0.05f) {
 					setLocalGSTile(rx, ry, {ttypes::log});
@@ -835,6 +964,7 @@ class World {
 				}
 			}
 		}
+		cout << "new size: " << sizeof(gs) << endl;
 		return sections.push_back(gs);
 	}
 	TileAddress getTileAddress(int x, int y) {
@@ -981,13 +1111,19 @@ class World {
 		// do do tile queueueueue
 	}
 	void damageTile(int x, int y, float amount) {
-		int i;
-		for (i = 0; i < (int)sections.size(); i++) {
-			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) break;
-		}
-		sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].health -= amount;
-		if (sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].health <= 0.f) {
-			sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)] = {ttypes::air};
+		for (int i = 0; i < (int)sections.size(); i++) {
+			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
+				sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].health -= amount;
+				if (sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].health <= 0.f) {
+					Entity* e = new EntityItem();
+					e->items.at(0) = sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].drops;
+					e->pos.x = (float)floor(x) + 0.5f;
+					e->pos.y = (float)floor(y) + 0.5f;
+					spawnEntity(e);
+					sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)] = {ttypes::air};
+				}
+				break;
+			}
 		}
 	}
 	bool areTwoEntitiesCollidingWithEachother(Entity* e1, Entity* e2) {
@@ -1014,8 +1150,8 @@ class World {
 		}
 		if (collided) return {true, tileCollisions, false, e, nullptr};
 		/*for (int i = 0; i < (int)entities.size(); i++) {
-			if (entities.at(i).id == e->id) continue;
-			if (areTwoEntitiesCollidingWithEachother(e, &entities.at(i))) return {true, {}, true, e, &entities.at(i)};
+			if (entities.at(i)->id == e->id) continue;
+			if (areTwoEntitiesCollidingWithEachother(e, entities.at(i))) return {true, {}, true, e, entities.at(i)};
 		}*/
 		return {false, {}, false, e, nullptr};
 	}
@@ -1023,7 +1159,7 @@ class World {
 		if (e->punchDelayTimer > 0.f) return;
 		// cout << "punching intity info--- id: " << e->id << ", type" << e->type << endl;
 		for (int i = 0; i < (int)entities.size(); i++) {
-			if (entities.at(i).id == e->id) {
+			if (entities.at(i)->id == e->id) {
 				break;
 			}
 		}
@@ -1033,35 +1169,48 @@ class World {
 		bool facingRight = e->facingVector.x != -1;
 		particles.push_back({{e->pos.x + (facingRight ? e->size.x / 2.f + 0.5f : e->size.x / -2.f - 0.5f), e->pos.y + e->size.y / 2.f}, {0.f, 0.f}, {facingRight ? 1.f : -1.f, 1.f}, 0.3f, "sweep"});
 		for (int i = (int)e->size.y; i >= 0; i--) {
-			if (getTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i).type != ttypes::air) {
-				damageTile((int)e->pos.x + (facingRight ? 1 : -1), (int)e->pos.y + i, e->items.at(e->itemNumber).damage);
+			if (getTile((int)floor(e->pos.x) + (facingRight ? 1 : -1), (int)floor(e->pos.y) + i).type != ttypes::air) {
+				damageTile((int)floor(e->pos.x) + (facingRight ? 1 : -1), (int)floor(e->pos.y) + i, e->items.at(e->itemNumber).damage);
 				break;
 			}
 		}
+		float right = facingRight ? (e->pos.x + e->size.x / 2.f + 1.f) : (e->pos.x - e->size.x / 2.f);
+		float left = facingRight ? (e->pos.x + e->size.x / 2.f) : (e->pos.x - e->size.x / 2.f - 1.f);
 		for (int i = 0; i < (int)entities.size(); i++) {
-			float right = facingRight ? (e->pos.x + e->size.x / 2.f + 1.f) : (e->pos.x - e->size.x / 2.f);
-			float left = facingRight ? (e->pos.x + e->size.x / 2.f) : (e->pos.x - e->size.x / 2.f - 1.f);
+			if (!entities.at(i)->isDamagable) continue;
 			if (
-				right > entities.at(i).pos.x - entities.at(i).size.x / 2.f && 
-				left < entities.at(i).pos.x + entities.at(i).size.x / 2.f && 
-				e->pos.y + e->size.y / 2.f > entities.at(i).pos.y - entities.at(i).size.y / 2.f && 
-				e->pos.y - e->size.y / 2.f < entities.at(i).pos.y + entities.at(i).size.y / 2.f
+				right > entities.at(i)->pos.x - entities.at(i)->size.x / 2.f && 
+				left < entities.at(i)->pos.x + entities.at(i)->size.x / 2.f && 
+				e->pos.y + e->size.y / 2.f > entities.at(i)->pos.y - entities.at(i)->size.y / 2.f && 
+				e->pos.y - e->size.y / 2.f < entities.at(i)->pos.y + entities.at(i)->size.y / 2.f
 			) {
-				particles.push_back({{entities.at(i).pos.x, entities.at(i).pos.y + entities.at(i).size.y}, {0.f, 1.f}, {1.f, 1.f}, 1.f, "damage_heart"});
-				entities.at(i).health -= e->items.at(e->itemNumber).damage;
+				particles.push_back({{entities.at(i)->pos.x, entities.at(i)->pos.y + entities.at(i)->size.y}, {0.f, 1.f}, {1.f, 1.f}, 1.f, "damage_heart"});
+				entities.at(i)->health -= e->items.at(e->itemNumber).damage;
+				entities.at(i)->damageRedness = 1.f;
 			}
 		}
 	}
-	void spawnEntity(Entity e) {
+	void makeEntityDrop(Entity* e) {
+		bool facingRight = e->facingVector.x != -1;
+		Entity* item = new EntityItem();
+		item->items.at(0) = e->items.at(e->itemNumber);
+		item->pos.x = e->pos.x;
+		item->pos.y = e->pos.y + e->size.y - item->size.y;
+		item->vel.x = facingRight ? 1.f : -1.f;
+		e->items.at(e->itemNumber) = itypes::none;
+		spawnEntity(item);
+	}
+	void spawnEntity(Entity* e) {
 		entities.push_back(e);
-		if (self == -1 && e.type == etypes::player) self = entities.size() - 1;
+		if (self == -1 && e->type == etypes::player) self = entities.size() - 1;
 	}
 	void deleteEntity(int index) {
+		delete entities.at(index);
 		entities.erase(entities.begin() + index);
 		if (index < self) self--;
 		else if (index == self) {
 			self = -1;
-			spawnEntity({etypes::player});
+			spawnEntity(new EntityPlayer());
 		}
 	}
 };
@@ -1077,7 +1226,7 @@ class GameState {
 	bool shopOpen = false;
 	bool commandPromptOpen = false;
 	int typingMode = 0; // 0 in game 1 typing
-	string commandPromptText = "say udufsgdsfiu";
+	string commandPromptText = "";
 	void tick() {
 		controls.previousClipMouse = controls.clipMouse;
 		controls.clipMouse.x = (controls.mouse.x / (float)width - 0.5f) * 2.f;
@@ -1091,39 +1240,45 @@ class GameState {
 		float gravity = -9.807f;
 
 		if (controls.space) {
-			Entity e = {etypes::sentry};
-			e.pos.x = randFloat() * 100.f;
-			if (!world.getEntityCollision(&e).collided) world.entities.push_back(e);
+			Entity* e = new EntitySentry();
+			e->pos.x = randFloat() * 100.f;
+			if (!world.getEntityCollision(e).collided) world.entities.push_back(e);
 		}
+
 		//find player is
 		vector<int> playerIs;
 		vector<Light> lights;
 		for (int i = 0; i < (int)world.entities.size(); i++) {
-			if (world.entities.at(i).type == etypes::player) {
-				world.entities.at(i).health -= dt * 0.1f;
-				if (controls.e && world.entities.at(i).items.at(world.entities.at(i).itemNumber).isEdible) {
-					world.entities.at(i).health += world.entities.at(i).items.at(world.entities.at(i).itemNumber).eatingHealth * dt;
-					if (world.entities.at(i).health > world.entities.at(i).maxHealth) {
-						world.entities.at(i).health = world.entities.at(i).maxHealth;
+			Entity* e = world.entities.at(i);
+			if (e->type == etypes::player) {
+				e->health -= dt * 0.1f;
+				if (controls.e && e->items.at(e->itemNumber).isEdible) {
+					e->health += e->items.at(e->itemNumber).eatingHealth * dt;
+					if (e->health > e->maxHealth) {
+						e->health = e->maxHealth;
 					}
-					world.entities.at(i).items.at(world.entities.at(i).itemNumber).durability -= dt;
-					if (world.entities.at(i).items.at(world.entities.at(i).itemNumber).durability <= 0.f) {
-						world.entities.at(i).items.at(world.entities.at(i).itemNumber) = {itypes::none};
+					e->items.at(e->itemNumber).durability -= dt;
+					if (e->items.at(e->itemNumber).durability <= 0.f) {
+						e->items.at(e->itemNumber) = {itypes::none};
 					}
 				}
 				playerIs.push_back(i);
 				if (controls.xPressed) {
 					controls.xPressed = false;
-					world.makeEntityPunch(&world.entities.at(i));
+					world.makeEntityPunch(world.entities.at(i));
+				}
+				if (controls.bPressed) {
+					controls.bPressed = false;
+					world.makeEntityDrop(world.entities.at(i));
 				}
 				if (
-					world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.r > 0.f &&
-					world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.g > 0.f &&
-					world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.b > 0.f
-				) lights.push_back({{world.entities.at(i).pos.x, world.entities.at(i).pos.y + world.entities.at(i).size.y / 2.f}, world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission});
-				world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.r *= 0.999f;
-				world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.g *= 0.999f;
-				world.entities.at(i).items.at(world.entities.at(i).itemNumber).emission.b *= 0.999f;
+					e->items.at(e->itemNumber).emission.r > 0.f &&
+					e->items.at(e->itemNumber).emission.g > 0.f &&
+					e->items.at(e->itemNumber).emission.b > 0.f
+				) lights.push_back({{e->pos.x, e->pos.y + e->size.y / 2.f}, e->items.at(e->itemNumber).emission});
+				e->items.at(e->itemNumber).emission.r *= 0.9999f;
+				e->items.at(e->itemNumber).emission.g *= 0.9999f;
+				e->items.at(e->itemNumber).emission.b *= 0.9999f;
 			}
 		}
 		world.lightingStep(lights, dt);
@@ -1131,18 +1286,19 @@ class GameState {
 			world.damageTile((int)floor(controls.worldMouse.x), (int)floor(controls.worldMouse.y), 53.f * dt);
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
-			Entity* e = &world.entities.at(i);
-			if (randFloat() < 0.0002f && e->type != 0) {
-				Entity latest = {e->type};
-				latest.pos.x = e->pos.x;
-				latest.pos.y = e->pos.y + e->size.y + 0.1f;
-				if (!world.getEntityCollision(&latest).collided) {
-					latest.speed += 0.3f * (randFloat() - 0.5f);
-					world.entities.push_back(latest);
-				}
-			}
+			Entity* e = world.entities.at(i);
+			//newest new est newsest newest newest newest newest latest
 			e->punchDelayTimer -= dt;
 			if (e->punchDelayTimer < 0.f) e->punchDelayTimer = 0.f;
+
+			if (e->type == etypes::sentry) {
+				e->particleEmitTimer -= dt;
+				while (e->particleEmitTimer <= 0.f) {
+					e->particleEmitTimer += e->particleEmitDelay;
+					float theta = randFloat() * PI * 2.f;
+					world.particles.push_back({{e->pos.x, e->pos.y + e->size.y / 2.f}, {sin(theta), cos(theta)}, {0.5f, 0.5f}, 2.f, "dark_energy"});
+				}
+			}
 
 			bool controlsLeft = false;
 			bool controlsRight = false;
@@ -1151,20 +1307,36 @@ class GameState {
 				controlsLeft = controls.a || controls.left;
 				controlsRight = controls.d || controls.right;
 				controlsUp = controls.w || controls.up;
-			} else {
+			} else if (e->controlsType == 1) {
 				int nearestPlayerI = -1;
 				float nearestPlayerDistance = 0.f;
 				for (int j = 0; j < (int)playerIs.size(); j++) {
-					float currentDistance = distance(world.entities.at(playerIs.at(j)).pos, e->pos);
-					if ((nearestPlayerI == -1 || currentDistance < nearestPlayerDistance) && world.entities.at(playerIs.at(j)).id != e->id) {
+					float currentDistance = distance(world.entities.at(playerIs.at(j))->pos, e->pos);
+					if ((nearestPlayerI == -1 || currentDistance < nearestPlayerDistance) && world.entities.at(playerIs.at(j))->id != e->id) {
 						nearestPlayerDistance = currentDistance;
 						nearestPlayerI = j;
 					}
 				}
 				if (nearestPlayerI != -1) {
 					controlsUp = true;
-					controlsLeft = (world.entities.at(playerIs.at(nearestPlayerI)).pos.x < e->pos.x);
-					controlsRight = (world.entities.at(playerIs.at(nearestPlayerI)).pos.x > e->pos.x);
+					controlsLeft = (world.entities.at(playerIs.at(nearestPlayerI))->pos.x < e->pos.x);
+					controlsRight = (world.entities.at(playerIs.at(nearestPlayerI))->pos.x > e->pos.x);
+					world.makeEntityPunch(e);
+				}
+			} else if (e->controlsType == 2) {
+				int nearestPlayerI = -1;
+				float nearestPlayerDistance = 0.f;
+				for (int j = 0; j < (int)playerIs.size(); j++) {
+					float currentDistance = distance(world.entities.at(playerIs.at(j))->pos, e->pos);
+					if ((nearestPlayerI == -1 || currentDistance < nearestPlayerDistance) && world.entities.at(playerIs.at(j))->id != e->id) {
+						nearestPlayerDistance = currentDistance;
+						nearestPlayerI = j;
+					}
+				}
+				if (nearestPlayerI != -1) {
+					controlsLeft = (controls.a || controls.left) && (world.entities.at(playerIs.at(nearestPlayerI))->pos.x < e->pos.x);
+					controlsRight = (controls.d || controls.right) && (world.entities.at(playerIs.at(nearestPlayerI))->pos.x > e->pos.x);
+					controlsUp = controls.w || controls.up;
 					world.makeEntityPunch(e);
 				}
 			}
@@ -1174,7 +1346,7 @@ class GameState {
 					e->swingRotation = 0.f;
 					e->isSwinging = false;
 				}
-			};
+			}
 
 			float friction;
 			if (e->onGround) {
@@ -1209,38 +1381,63 @@ class GameState {
 			
 			//y collision n stuff
 			e->pos.y += e->vel.y * dt;
+			float oldOnGround = e->onGround;
 			e->onGround = false;
 			collision = world.getEntityCollision(e);
 			if (collision.collided) {
 				e->pos.y -= e->vel.y * dt;
 				e->onGround = e->vel.y < 0.f;
+				if (!oldOnGround && e->onGround && e->isDamagable && e->vel.y <= -10.f) {
+					e->health += (e->vel.y + 10.f) / 5.f;
+					e->damageRedness = 1.f;
+				}
 				e->vel.y = 0.f;
 				if (controlsUp && e->onGround) {
 					e->vel.y = 6.f;
 				}
 			}
-			if (e->type == etypes::player) {
-				for (int x = (int)floor(e->pos.x - e->size.x / 2.f); x < (int)floor(e->pos.x + e->size.x / 2.f); x++) {
-					for (int y = (int)floor(e->pos.y); y < (int)floor(e->pos.y + e->size.y); y++) {
-						if (world.getTile(x, y).type == ttypes::sentry_shack_middle) {
-							world.setTile(x, y - 1, {ttypes::air});
-							world.setTile(x, y, {ttypes::air});
-							world.setTile(x, y + 1, {ttypes::air});
-							Entity e = {etypes::sentry};
-							e.pos.x = x;
-							e.pos.y = y;
-							world.entities.push_back(e);
+			if (controlsUp && debug) {
+				e->vel.y = 6.f;
+			}
+			e->damageRedness = max(e->damageRedness - dt / 0.5f, 0.f);
+			if (e->canPickUpStuff) {
+				for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
+					if (world.entities.at(i)->type != etypes::item || world.entities.at(i)->age < 1.f || world.entities.at(i)->id == e->id) continue;
+					if (world.areTwoEntitiesCollidingWithEachother(e, world.entities.at(i))) {
+						for (int j = 0; j < (int)e->items.size(); j++) {
+							if (e->items.at(j).type == itypes::none) {
+								e->items.at(j) = world.entities.at(i)->items.at(0);
+								world.deleteEntity(i);
+								break;
+							}
 						}
 					}
 				}
 			}
+			if (e->type == etypes::player) {
+				for (int x = (int)floor(e->pos.x - e->size.x / 2.f); x < (int)ceil(e->pos.x + e->size.x / 2.f); x++) {
+					for (int y = (int)floor(e->pos.y); y < (int)ceil(e->pos.y + e->size.y); y++) {
+						if (world.getTile(x, y).type == ttypes::sentry_shack_middle) {
+							world.setTile(x, y - 1, {ttypes::air});
+							world.setTile(x, y, {ttypes::air});
+							world.setTile(x, y + 1, {ttypes::air});
+							Entity* e = new EntitySentry();
+							e->pos.x = (float)x;
+							e->pos.y = (float)y;
+							world.spawnEntity(e);
+						}
+					}
+				}
+			}
+			e->age += dt;
 		}
+
 		if ((int)playerIs.size() > 0) {
 			float targetX = 0.f;
 			float targetY = 0.f;
 			for (int i = 0; i < (int)playerIs.size(); i++) {
-				targetX += world.entities.at(playerIs.at(i)).pos.x;
-				targetY += world.entities.at(playerIs.at(i)).pos.y + world.entities.at(playerIs.at(i)).size.y / 2.f;
+				targetX += world.entities.at(playerIs.at(i))->pos.x;
+				targetY += world.entities.at(playerIs.at(i))->pos.y + world.entities.at(playerIs.at(i))->size.y / 2.f;
 			}
 			targetX /= (float)playerIs.size();
 			targetY /= (float)playerIs.size();
@@ -1248,9 +1445,10 @@ class GameState {
 			world.camera.pos.x = lerpd(world.camera.pos.x, targetX, 0.99f, dt);
 			world.camera.pos.y = lerpd(world.camera.pos.y, targetY, 0.99f, dt);
 		}
+
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
-			if (world.entities.at(i).health <= 0.f) {
-				world.particles.push_back({world.entities.at(i).pos, {0.f, 1.f}, {1.f, 1.f}, 2.f, "skull"});
+			if (world.entities.at(i)->health <= 0.f) {
+				world.particles.push_back({world.entities.at(i)->pos, {0.f, 1.f}, {1.f, 1.f}, 2.f, "skull"});
 				world.deleteEntity(i);
 			}
 		}
@@ -1301,18 +1499,81 @@ class GameState {
 		}
 		int argC = args.size();
 		if (args.at(0) == "tp" && (argC == 2 || argC == 3)) {
-			world.entities.at(world.self).pos.x = stof(args.at(1));
-			if (argC == 3) world.entities.at(world.self).pos.x = stof(args.at(2));
+			world.entities.at(world.self)->pos.x = stof(args.at(1));
+			if (argC == 3) world.entities.at(world.self)->pos.y = stof(args.at(2));
+		} else if (args.at(0) == "spawn" && (argC == 2 || argC == 4)) {
+			Entity* e = nullptr;
+			if (args.at(1) == "sentry") {
+				e = new EntitySentry();
+			} else if (args.at(1) == "mimic") {
+				e = new EntityMimic();
+			} else if (args.at(1) == "merchant") {
+				e = new EntityMerchant();
+			} else {
+				e = new EntitySentry();
+			}
+			e->pos = world.entities.at(world.self)->pos;
+			if (argC == 4) {
+				e->pos.x += stof(args.at(2));
+				e->pos.y += stof(args.at(3));
+			}
+			world.spawnEntity(e);
+		} else if (args.at(0) == "generate" && argC == 3) {
+			world.generateTileSection(stoi(args.at(1)), stoi(args.at(2)));
 		}
 		return 0;
 	}
 };
 GameState game;
+struct Button {
+	string text;
+	int action;
+	float x;
+	float y;
+	float width;
+	float height;
+	bool enabled;
+	bool visible;
+};
+vector<Button> buttons = {
+	{"SHOP", 0, 0.75f, 0.75f, 0.2f, 0.2f, true, true},
+	{"next skin", 1, -0.5f, 0.1f, 0.3f, 0.1f, true, false},
+	{"vsync: on", 2, -0.5f, 0.f, 0.3f, 0.1f, true, false},
+};
+void shopButton() {
+	game.shopOpen = !game.shopOpen;
+	buttons.at(1).visible = game.shopOpen;
+	buttons.at(2).visible = game.shopOpen;
+}
+void skinButton() {
+	int skinNumber = 0;
+	for (int i = 0; i < (int)skins.list.size(); i++) {
+		if (game.world.entities.at(game.world.self)->material == "skin_" + skins.list.at(i)) {
+			skinNumber = i + 1;
+			if (skinNumber >= skins.list.size()) skinNumber = 0;
+			game.world.entities.at(game.world.self)->material = "skin_" + skins.list.at(skinNumber);
+			cout << "[INFO] changed skin to: " + skins.list.at(skinNumber) << endl;
+			break;
+		}
+	}
+}
+bool vsync = true;
+void toggleVsync() {
+	if (vsync = !vsync) {
+		glfwSwapInterval(1);
+	} else {
+		glfwSwapInterval(0);
+	}
+}
+void vsyncButton() {
+	toggleVsync();
+	buttons.at(2).text = string("vsync: ") + (vsync ? "on" : "off");
+}
 static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods) {
 	if (game.typingMode == 0) {
 		if (action == GLFW_PRESS) {
 			if (key == GLFW_KEY_ESCAPE) {
-				game.playing = !game.playing;
+				shopButton();
 			} else
 			if (key == GLFW_KEY_Q) {
 				glfwSetWindowShouldClose(window, GLFW_TRUE);
@@ -1325,24 +1586,26 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 				game.commandPromptOpen = true;
 				game.typingMode = 1;
 			}
-			else if (key == GLFW_KEY_1) game.world.entities.at(game.world.self).itemNumber = 0;
-			else if (key == GLFW_KEY_2) game.world.entities.at(game.world.self).itemNumber = 1;
-			else if (key == GLFW_KEY_3) game.world.entities.at(game.world.self).itemNumber = 2;
-			else if (key == GLFW_KEY_4) game.world.entities.at(game.world.self).itemNumber = 3;
-			else if (key == GLFW_KEY_5) game.world.entities.at(game.world.self).itemNumber = 4;
-			else if (key == GLFW_KEY_6) game.world.entities.at(game.world.self).itemNumber = 5;
-			else if (key == GLFW_KEY_7) game.world.entities.at(game.world.self).itemNumber = 6;
-			else if (key == GLFW_KEY_8) game.world.entities.at(game.world.self).itemNumber = 7;
+			else if (key == GLFW_KEY_1) game.world.entities.at(game.world.self)->itemNumber = 0;
+			else if (key == GLFW_KEY_2) game.world.entities.at(game.world.self)->itemNumber = 1;
+			else if (key == GLFW_KEY_3) game.world.entities.at(game.world.self)->itemNumber = 2;
+			else if (key == GLFW_KEY_4) game.world.entities.at(game.world.self)->itemNumber = 3;
+			else if (key == GLFW_KEY_5) game.world.entities.at(game.world.self)->itemNumber = 4;
+			else if (key == GLFW_KEY_6) game.world.entities.at(game.world.self)->itemNumber = 5;
+			else if (key == GLFW_KEY_7) game.world.entities.at(game.world.self)->itemNumber = 6;
+			else if (key == GLFW_KEY_8) game.world.entities.at(game.world.self)->itemNumber = 7;
 			else if (key == GLFW_KEY_LEFT_SHIFT) controls.shift = true;
 			else if (key == GLFW_KEY_UP) controls.up = true;
 			else if (key == GLFW_KEY_DOWN) controls.down = true;
 			else if (key == GLFW_KEY_LEFT) controls.left = true;
 			else if (key == GLFW_KEY_RIGHT) controls.right = true;
 			else if (key == GLFW_KEY_E) controls.e = true;
+			else if (key == GLFW_KEY_V) debug = !debug;
 			else if (key == GLFW_KEY_SPACE) {
 				controls.space = true;
 			}
 			else if (key == GLFW_KEY_X) controls.xPressed = true;
+			else if (key == GLFW_KEY_B) controls.bPressed = true;
 		}
 		else if (action == GLFW_RELEASE) {
 			if (key == GLFW_KEY_W) controls.w = false;
@@ -1405,50 +1668,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 		}
 	}
 }
-struct Button {
-	string text;
-	int action;
-	float x;
-	float y;
-	float width;
-	float height;
-	bool enabled;
-	bool visible;
-};
-vector<Button> buttons = {
-	{"SHOP", 0, 0.75f, 0.75f, 0.2f, 0.2f, true, true},
-	{"next skin", 1, -0.5f, 0.1f, 0.3f, 0.1f, true, false},
-	{"vsync: on", 2, -0.5f, 0.f, 0.3f, 0.1f, true, false},
-};
-void shopButton() {
-	game.shopOpen = !game.shopOpen;
-	buttons.at(1).visible = game.shopOpen;
-	buttons.at(2).visible = game.shopOpen;
-}
-void skinButton() {
-	int skinNumber = 0;
-	for (int i = 0; i < (int)skins.list.size(); i++) {
-		if (game.world.entities.at(game.world.self).material == "skin_" + skins.list.at(i)) {
-			skinNumber = i + 1;
-			if (skinNumber >= skins.list.size()) skinNumber = 0;
-			game.world.entities.at(game.world.self).material = "skin_" + skins.list.at(skinNumber);
-			cout << "[INFO] changed skin to: " + skins.list.at(skinNumber) << endl;
-			break;
-		}
-	}
-}
-bool vsync = true;
-void toggleVsync() {
-	if (vsync = !vsync) {
-		glfwSwapInterval(1);
-	} else {
-		glfwSwapInterval(0);
-	}
-}
-void vsyncButton() {
-	toggleVsync();
-	buttons.at(2).text = string("vsync: ") + (vsync ? "on" : "off");
-}
 static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods) {
 	if(button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS) {
 		double xpos, ypos;
@@ -1473,7 +1692,32 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		double xpos, ypos;
 		//getting cursor position
 		glfwGetCursorPos(window, &xpos, &ypos);
-		game.world.setTile((int)floor(controls.worldMouse.x), (int)floor(controls.worldMouse.y), {ttypes::stone});
+		int type = game.world.entities.at(game.world.self)->items.at(game.world.entities.at(game.world.self)->itemNumber).type;
+		bool didPlaceTile = false;
+		int tileToPlace = ttypes::none;
+		if (type == itypes::dirt) {
+			didPlaceTile = true;
+			tileToPlace = ttypes::dirt;
+		} else if (type == itypes::snow) {
+			didPlaceTile = true;
+			tileToPlace = ttypes::snow;
+		} else if (type == itypes::stone) {
+			didPlaceTile = true;
+			tileToPlace = ttypes::stone;
+		} else if (type == itypes::wood) {
+			didPlaceTile = true;
+			tileToPlace = ttypes::wood;
+		} else if (type == itypes::log) {
+			didPlaceTile = true;
+			tileToPlace = ttypes::log;
+		} else if (type == itypes::leaves) {
+			didPlaceTile = true;
+			tileToPlace = ttypes::leaves;
+		}
+		if (didPlaceTile) {
+			game.world.setTile((int)floor(controls.worldMouse.x), (int)floor(controls.worldMouse.y), {tileToPlace});
+			game.world.entities.at(game.world.self)->items.at(game.world.entities.at(game.world.self)->itemNumber) = {itypes::none};
+		}
 	}
 }
 static void cursor_position_callback(GLFWwindow* window, double xpos, double ypos) {
@@ -1534,9 +1778,13 @@ public:
 		game = gam;
 		//append materials
 
+		//very background
 		materials.push_back({"sky"						, solidV.shader	, guiF.shader			, "resources/texture/sky.png"});
+		materials.push_back({"stone_background"			, solidV.shader	, solidF.shader			, "resources/texture/stone_background.png"});
 		materials.push_back({"hills"					, solidV.shader	, solidF.shader			, "resources/texture/hills.png"});
 		materials.push_back({"cloud"					, solidV.shader	, solidF.shader			, "resources/texture/cloud.png"});
+
+		// tiles
 		addBothSpaceMaterial("dirt"																, "resources/texture/dirt.png");
 		addBothSpaceMaterial("snow"																, "resources/texture/snow.png");
 		addBothSpaceMaterial("stone"															, "resources/texture/stone.png");
@@ -1549,36 +1797,43 @@ public:
 		addBothSpaceMaterial("sentry_shack_top"													, "resources/texture/sentry_shack_top.png");
 		materials.push_back({"grass_left"				, solidV.shader	, solidF.shader			, "resources/texture/grass_left.png"});
 		materials.push_back({"grass_right"				, solidV.shader	, solidF.shader			, "resources/texture/grass_right.png"});
+
+		//entities and particles
 		for (int i = 0; i < (int)skins.list.size(); i++) {
 			addBothSpaceMaterial("skin_" + skins.list.at(i), "resources/texture/skins/" + skins.list.at(i) + ".png");
 		}
 		materials.push_back({"sentry"					, solidV.shader	, solidF.shader			, "resources/texture/sentry.png"});
 		materials.push_back({"mimic"					, solidV.shader	, solidF.shader			, "resources/texture/mimic.png"});
+		materials.push_back({"merchant"					, solidV.shader	, solidF.shader			, "resources/texture/merchant.png"});
 		materials.push_back({"tile_cracks"				, solidV.shader	, solidF.shader			, "resources/texture/tile_cracks.png"});
 		materials.push_back({"select"					, solidV.shader	, solidF.shader			, "resources/texture/select.png"});
+		materials.push_back({"dark_energy"				, solidV.shader	, solidF.shader			, "resources/texture/dark_energy.png"});
 		materials.push_back({"skull"					, solidV.shader	, solidF.shader			, "resources/texture/skull.png"});
 		materials.push_back({"damage_heart"				, solidV.shader	, solidF.shader			, "resources/texture/damage_heart.png"});
 		materials.push_back({"sweep"					, solidV.shader	, solidF.shader			, "resources/texture/sweep.png"});
 		materials.push_back({"outline"					, solidV.shader	, solidF.shader			, "resources/texture/outline.png"});
 
+		// items
 		addBothSpaceMaterial("sword"															, "resources/texture/sword.png");
 		addBothSpaceMaterial("excalibur"														, "resources/texture/excalibur.png");
-		addBothSpaceMaterial("bshorin"															, "resources/texture/bshorin.png");
 		addBothSpaceMaterial("burger"															, "resources/texture/burger.png");
 		addBothSpaceMaterial("antbread"															, "resources/texture/antbread.png");
 		addBothSpaceMaterial("lantern"															, "resources/texture/lantern.png");
 		addBothSpaceMaterial("pickaxe"															, "resources/texture/pickaxe.png");
 
+		// gui
+		materials.push_back({"blood_vignette"			, guiV.shader	, guiF.shader			, "resources/texture/blood_vignette.png"});
 		materials.push_back({"items_slot"				, guiV.shader	, guiF.shader			, "resources/texture/items_slot.png"});
 		materials.push_back({"items_selected"			, guiV.shader	, guiF.shader			, "resources/texture/items_selected.png"});
 		materials.push_back({"health_green"				, guiV.shader	, healthBarGreenF.shader, "resources/texture/items_selected.png"});
 		materials.push_back({"health_bg"				, guiV.shader	, healthBarBgF.shader	, "resources/texture/items_selected.png"});
+		materials.push_back({"heart"					, guiV.shader	, guiF.shader			, "resources/texture/heart.png"});
 		materials.push_back({"shop_bg"					, guiV.shader	, guiF.shader			, "resources/texture/shop_bg.png"});
 		materials.push_back({"button"					, guiV.shader	, guiF.shader			, "resources/texture/button.png"});
 		materials.push_back({"button_disabled"			, guiV.shader	, guiGrayscaleF.shader	, "resources/texture/button.png"});
 		materials.push_back({"empty"					, solidV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
 		materials.push_back({"gui_empty"				, guiV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
-
+		
 		materials.push_back({"gui_font"				    , fontV.shader , guiF.shader			, "resources/texture/font.png"});
 
 		// create index buffers
@@ -1601,6 +1856,7 @@ public:
 		addScreenRect(-50000.f, -10000.f, -5000.f, 100000.f, 20000.f, getMatID("sky"));
 		for (int x = -100; x < 100; x++) {
 			addRect((float)x * 150.f, 0.f, -15.f, 150.f, 30.f, getMatID("hills"));
+			addRect((float)x * 150.f, -300.f, -15.f, 150.f, 300.f, getMatID("stone_background"));
 		}
 		for (int i = 0; i < (int)game->world.clouds.size(); i++) {
 			addRect(game->world.clouds.at(i).r, game->world.clouds.at(i).g, game->world.clouds.at(i).b, 150.f, 75.f, getMatID("cloud"));
@@ -1619,42 +1875,75 @@ public:
 				for (int y = 0; y < SECT_SIZE; y++) {
 					if ((float)y + 1.f + (float)(game->world.sections.at(i).y * SECT_SIZE) < game->world.camera.bottom(0.f) - 2.f) continue;
 					if ((float)y + (float)(game->world.sections.at(i).y * SECT_SIZE) > game->world.camera.top(0.f) + 2.f) break;
-					float lightR = game->world.sections.at(i).lightmap[x][y].r;
-					float lightG = game->world.sections.at(i).lightmap[x][y].g;
-					float lightB = game->world.sections.at(i).lightmap[x][y].b;
-					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, 0.f,  game->world.sections.at(i).tiles[x][y].type, lightR, lightG, lightB, false);
-					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, -2.f, game->world.sections.at(i).bgTiles[x][y].type, lightR, lightG, lightB, true);
+					Vec3 lightColor = game->world.sections.at(i).lightmap[x][y];
+					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, 0.f,  game->world.sections.at(i).tiles[x][y].type, lightColor.r, lightColor.g, lightColor.b, false);
+					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, -2.f, game->world.sections.at(i).bgTiles[x][y].type, lightColor.r, lightColor.g, lightColor.b, true);
 					if (game->world.sections.at(i).tiles[x][y].health < game->world.sections.at(i).tiles[x][y].maxHealth) {
 						addRect((float)(game->world.sections.at(i).x * SECT_SIZE + x), (float)(game->world.sections.at(i).y * SECT_SIZE + y), 0.001f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.sections.at(i).tiles[x][y].maxHealth - game->world.sections.at(i).tiles[x][y].health) / game->world.sections.at(i).tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
 					}
 				}
 			}
-			//addRect(game->world.sections.at(i).x * SECT_SIZE, game->world.sections.at(i).y * SECT_SIZE, 0.05f, SECT_SIZE, SECT_SIZE, getMatID("outline"));
+			if (debug) addRect(game->world.sections.at(i).x * SECT_SIZE, game->world.sections.at(i).y * SECT_SIZE, 0.05f, SECT_SIZE, SECT_SIZE, getMatID("outline"));
 		}
 		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.002f, 1.f, 1.f, getMatID("select"));
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
-			Entity* e = &game->world.entities.at(i);
-			int fvx = game->world.entities.at(i).facingVector.x;
-			addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
-			float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.1f) : (e->pos.x + e->size.x / 2.f + 0.1f);
-			addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->items.at(e->itemNumber).size.x * (fvx == -1 ? -1.f : 1.f), e->items.at(e->itemNumber).size.y, getMatID(e->items.at(e->itemNumber).material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
+			Entity* e = game->world.entities.at(i);
+			if (e->type == etypes::item) {
+				float heightOffset = sin(game->world.time * 3.f) * 0.05f;
+				addRotatedRect(e->pos.x - e->items.at(e->itemNumber).size.x / 4.f, e->pos.y + heightOffset, 0.003f, e->items.at(e->itemNumber).size.x / 2.f, e->items.at(e->itemNumber).size.y / 2.f, getMatID(e->items.at(e->itemNumber).material), sin(game->world.time * 4.f) * 0.03f, e->pos.x, e->pos.y + e->items.at(e->itemNumber).size.y / 4.f + heightOffset);
+			} else if (e->type == etypes::player) {
+				int fvx = game->world.entities.at(i)->facingVector.x;
+				//addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
+				float bodyX = e->pos.x - e->size.x / 2.f;
+				float bodyY = e->pos.y + e->size.y / 3.f;
+				float bodyWidth = e->size.x;
+				float bodyHeight = e->size.y / 3.f;
+				float leftLegX = e->pos.x - e->size.x / 2.f;
+				float rightLegX = e->pos.x + e->size.x / 6.f;
+				float legBottomY = e->pos.y;
+				float legTopY = e->pos.y + e->size.y / 6.f;
+				float legWidth = e->size.x / 3.f;
+				float legHeight = e->size.y / 6.f;
+				addRect(bodyX, bodyY, 0.f, bodyWidth, bodyHeight, getMatID("skin_body_gregger"));
+				float theta = e->pos.x * 2.5;
+				float leftLegBottomTopX = leftLegX + legWidth / 2.f + sin(theta) * legHeight;
+				float leftLegBottomTopY = legTopY + legHeight + cos(theta) * legHeight;
+				float rightLegBottomTopX = rightLegX + legWidth / 2.f + sin(PI + theta) * legHeight;
+				float rightLegBottomTopY = legTopY + legHeight + cos(PI + theta) * legHeight;
+				addRotatedRect(leftLegX, legTopY, 0.f, legWidth, legHeight, getMatID("stone"), theta + PI, leftLegX + legWidth / 2.f, legTopY + legHeight);
+				addRotatedRect(leftLegBottomTopX - legWidth / 2.f, leftLegBottomTopY - legHeight, 0.f, legWidth, legHeight, getMatID("stone"), game->world.time * 0.f, leftLegX + legWidth / 2.f, legBottomY + legHeight);
+				addRotatedRect(rightLegX, legTopY, 0.f, legWidth, legHeight, getMatID("stone"), theta, rightLegX + legWidth / 2.f, legTopY + legHeight);
+				addRotatedRect(rightLegBottomTopX - legWidth / 2.f, rightLegBottomTopY - legHeight, 0.f, legWidth, legHeight, getMatID("stone"), game->world.time * 0.f, rightLegX + legWidth / 2.f, legBottomY + legHeight);
+				float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.1f) : (e->pos.x + e->size.x / 2.f + 0.1f);
+				addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, e->items.at(e->itemNumber).size.x * (fvx == -1 ? -1.f : 1.f), e->items.at(e->itemNumber).size.y, getMatID(e->items.at(e->itemNumber).material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
+			} else {
+				addRect(e->pos.x, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material));
+			}
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
-			addRect(game->world.particles.at(i).pos.x - game->world.particles.at(i).size.x / 2.f, game->world.particles.at(i).pos.y - game->world.particles.at(i).size.y / 2.f, 0.004f, game->world.particles.at(i).size.x, game->world.particles.at(i).size.y, getMatID(game->world.particles.at(i).material));
+			float size = game->world.particles.at(i).time;
+			addRect(game->world.particles.at(i).pos.x - game->world.particles.at(i).size.x / 2.f * size, game->world.particles.at(i).pos.y - game->world.particles.at(i).size.y / 2.f * size, 0.004f, game->world.particles.at(i).size.x * size, game->world.particles.at(i).size.y * size, getMatID(game->world.particles.at(i).material));
 		}
 		/*for (int i = 0; i < (int)game->world.photons.size(); i++) {
 			addTri(game->world.photons.at(i).x, game->world.photons.at(i).y, 0.005f, 0.1f, getMatID("snow"));
 		}*/
 
-		for (int i = 0; i < (int)game->world.entities.at(game->world.self).items.size(); i++) {
-			addScreenRect((float)i * 0.1f - 0.45f, -1.f, -0.099f, 0.1f, 0.1f, getMatID("items_slot"));
-			addScreenRect((float)i * 0.1f - 0.45f, -1.f, -0.1f, 0.1f, 0.1f, getMatID(game->world.entities.at(game->world.self).items.at(i).material + "_gui"));
+		float redness = game->world.entities.at(game->world.self)->damageRedness;
+		float vignetteSize = lerp(5.f, 1.f, redness);
+		if (redness > 0.f) addScreenRect(-vignetteSize, -vignetteSize, -0.05f, vignetteSize * 2.f, vignetteSize * 2.f, getMatID("blood_vignette"));
+		for (int i = 0; i < (int)game->world.entities.at(game->world.self)->items.size(); i++) {
+			addScreenRect((float)i * 0.1f - 0.45f, -1.f, -0.099f, 0.1f, 0.1f * aspect, getMatID("items_slot"));
+			addScreenRect((float)i * 0.1f - 0.44f, -0.99f, -0.1f, 0.08f, 0.08f * aspect, getMatID(game->world.entities.at(game->world.self)->items.at(i).material + "_gui"));
 			addScreenRect((float)i * 0.1f - 0.45f, -0.99f, -0.101f, 0.095f, 0.01f, getMatID("health_bg"));
-			addScreenRect((float)i * 0.1f - 0.45f, -0.99f, -0.102f, 0.095f * game->world.entities.at(game->world.self).items.at(i).durability / game->world.entities.at(game->world.self).items.at(i).maxDurability, 0.01f, getMatID("health_green"));
+			addScreenRect((float)i * 0.1f - 0.45f, -0.99f, -0.102f, 0.095f * game->world.entities.at(game->world.self)->items.at(i).durability / game->world.entities.at(game->world.self)->items.at(i).maxDurability, 0.01f, getMatID("health_green"));
 		}
-		addScreenRect((float)game->world.entities.at(game->world.self).itemNumber * 0.1f - 0.45f, -1.f, -0.11f, 0.1f, 0.1f, getMatID("items_selected"));
-		addScreenRect(-0.5f, 0.9f, -0.11f, game->world.entities.at(game->world.self).health / game->world.entities.at(game->world.self).maxHealth, 0.1f, getMatID("health_green"));
-		addScreenRect(-0.5f, 0.9f, -0.105f, 1.f, 0.1f, getMatID("health_bg"));
+		addScreenRect((float)game->world.entities.at(game->world.self)->itemNumber * 0.1f - 0.45f, -1.f, -0.11f, 0.1f, 0.1f * aspect, getMatID("items_selected"));
+		float healthRatio = game->world.entities.at(game->world.self)->health / game->world.entities.at(game->world.self)->maxHealth;
+		float bottom = 1.f - 0.1f * aspect;
+		float top = 1.f - 0.02f * aspect;
+		addScreenQuad(-0.4f, top, 0.6f, top, -0.5f, bottom, 0.5f, bottom, -0.105f, getMatID("health_bg"));
+		addScreenQuad(-0.4f, top, healthRatio - 0.4f, top, -0.5f, bottom, healthRatio - 0.5f, bottom, -0.11f, getMatID("health_green"));
+		addScreenRect(-0.55f, 1.f - 0.15f * aspect, -0.115f, 0.15f, 0.15f * aspect, getMatID("heart"));
 
 		for (int i = 0; i < (int)buttons.size(); i++) {
 			if (!buttons.at(i).visible) continue;
@@ -1663,17 +1952,22 @@ public:
 		}
 		if (game->shopOpen) {
 			addScreenRect(-0.8f, -0.8f, -0.09f, 1.6f, 1.6f, getMatID("shop_bg"));
-			addScreenRect(-0.8f, -0.8f, -0.1f, 0.1f, 0.2f, getMatID(game->world.entities.at(game->world.self).material + "_gui"));
-			addTextLine("SHOP", 0.f, 0.7f, -0.1f, 0.1f, 0.8f, true);
+			addScreenRect(-0.8f, -0.8f, -0.1f, 0.1f, 0.2f, getMatID(game->world.entities.at(game->world.self)->material + "_gui"));
+			addTextLine("SHOP", 0.f, 0.7f, -0.1f, 0.1f, 1.f, true);
 		}
-		if (game->commandPromptOpen) {
+			if (game->commandPromptOpen) {
 			addScreenRect(-1.f, -0.8f, -0.09f, 2.f, 0.2f, getMatID("button"));
 			addTextLine(game->commandPromptText, -0.8f, -0.7f, -0.1f, 0.05f, 0.8f, false);
 		}
+		addTextLine(ftos(game->world.time / 600.f, 5), 0.f, -0.7f, -0.1f, 0.05f, 0.8f, true);
 
-		addText(to_string(fps) + " FPS", -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
-		addText(string("X ") + ftos(game->world.entities.at(game->world.self).pos.x, 5), -0.9f, 0.75f, -0.1f, 0.05f, 0.8f, 2.f, false);
-		addText(string("Y ") + ftos(game->world.entities.at(game->world.self).pos.y, 5), -0.9f, 0.6f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		if (debug) {
+			addText(to_string(fps) + " FPS", -0.9f, 0.9f, -0.1f, 0.05f, 0.8f, 2.f, false);
+			addText(string("X ") + ftos(game->world.entities.at(game->world.self)->pos.x, 5), -0.9f, 0.75f, -0.1f, 0.05f, 0.8f, 2.f, false);
+			addText(string("Y ") + ftos(game->world.entities.at(game->world.self)->pos.y, 5), -0.9f, 0.6f, -0.1f, 0.05f, 0.8f, 2.f, false);
+			addText(string("XV ") + ftos(game->world.entities.at(game->world.self)->vel.x, 5), -0.9f, 0.45f, -0.1f, 0.05f, 0.8f, 2.f, false);
+			addText(string("YV ") + ftos(game->world.entities.at(game->world.self)->vel.y, 5), -0.9f, 0.3f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		}
 		int tris = 0;
 		for (int i = 0; i < (int)materialIndices.size(); i++) {
 			tris += (int)materialIndices.at(i).size() / 3;
@@ -1765,6 +2059,19 @@ private:
 			{x+w, y  , z, u + s, v + t, 1.f, 1.f, 1.f, 1.f}
 		});
 	}
+	void addScreenQuad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float z, int matId) {
+		unsigned int end = vertices.size();
+		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
+			0U+end, 2U+end, 1U+end,
+			1U+end, 2U+end, 3U+end
+		});
+		vertices.insert(vertices.end(), {
+			{x1, y1, z, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f},
+			{x2, y2, z, 1.f, 0.f, 1.f, 1.f, 1.f, 1.f},
+			{x3, y3, z, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f},
+			{x4, y4, z, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f}
+		});
+	}
 	void addScreenRect(float x, float y, float z, float w, float h, int matId, float u = 0.f, float v = 0.f, float s = 1.f, float t = 1.f) {
 		unsigned int end = vertices.size();
 		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
@@ -1778,7 +2085,7 @@ private:
 			{x+w, y  , z, u + s, v + t, 1.f, 1.f, 1.f, 1.f}
 		});
 	}
-	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB) {
+	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB, float u=0.f, float v=0.f, float s=1.f, float t=1.f) {
 		if (x + w < game->world.camera.left(z) + z || x > game->world.camera.right(z) - z || y + h < game->world.camera.bottom(z) + z || y > game->world.camera.top(z) - z) return;
 		unsigned int end = vertices.size();
 		materialIndices.at(matId).insert(materialIndices.at(matId).end(), {
@@ -1786,36 +2093,33 @@ private:
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+h, z, 0.f, 0.f, tileHealth, lightR, lightG, lightB},
-			{x+w, y+h, z, 1.f, 0.f, tileHealth, lightR, lightG, lightB},
-			{x  , y  , z, 0.f, 1.f, tileHealth, lightR, lightG, lightB},
-			{x+w, y  , z, 1.f, 1.f, tileHealth, lightR, lightG, lightB}
+			{x  , y+h, z, u, v, tileHealth, lightR, lightG, lightB},
+			{x+w, y+h, z, u+s, v, tileHealth, lightR, lightG, lightB},
+			{x  , y  , z, u, v+t, tileHealth, lightR, lightG, lightB},
+			{x+w, y  , z, u+s, v+t, tileHealth, lightR, lightG, lightB}
 		});
 	}
 	void addTile(int x, int y, int z, int type, float lightR, float lightG, float lightB, bool isBackground) {
+		float uvSize;
 		switch (type) {
 			case ttypes::air:
 			//addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
 			break;
 			case ttypes::dirt:
 			if ((isBackground ? game->world.getBgTile(x, y + 1) : game->world.getTile(x, y + 1)).type == ttypes::air) {
-				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB);
+				uvSize = 10.f;
+				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
 			} else {
-				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB);
-			}/* else {
-				if ((isBackground ? game->world.getBgTile(x + 1, y + 1) : game->world.getTile(x + 1, y + 1)).type == ttypes::air && (isBackground ? game->world.getBgTile(x + 1, y) : game->world.getTile(x + 1, y)).type == ttypes::dirt) {
-					addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass_left"), 1.f, lightR, lightG, lightB);
-				}
-				if ((isBackground ? game->world.getBgTile(x - 1, y + 1) : game->world.getTile(x - 1, y + 1)).type == ttypes::air && (isBackground ? game->world.getBgTile(x - 1, y) : game->world.getTile(x - 1, y)).type == ttypes::dirt) {
-					addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass_right"), 1.f, lightR, lightG, lightB);
-				}
-			}*/
+				uvSize = 5.f;
+				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
+			}
 			break;
 			case ttypes::snow:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("snow"), 1.f, lightR, lightG, lightB);
 			break;
 			case ttypes::stone:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB);
+			uvSize = 5.f;
+			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
 			break;
 			case ttypes::wood:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("wood"), 1.f, lightR, lightG, lightB);
@@ -2026,7 +2330,6 @@ int main(void) {
 	glfwSetCursorPosCallback(window, cursor_position_callback);
 	glfwSetScrollCallback(window, scroll_callback);
 	glfwSetWindowIconifyCallback(window, iconify_callback);
-
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
 	glfwSwapInterval(1);
@@ -2040,12 +2343,11 @@ int main(void) {
 	glEnable(GL_BLEND);
 	glEnable(GL_MULTISAMPLE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-
 	glClearColor(0.4f, 0.4f, 0.9f, 1.f);
 	lastFrameTime = glfwGetTime();
-	
+
 	GameStateRenderer renderer{&game};
-	
+
 	while (!glfwWindowShouldClose(window)) {
 		if (game.playing && !windowIconified) {
 			double newFrameTime = glfwGetTime();

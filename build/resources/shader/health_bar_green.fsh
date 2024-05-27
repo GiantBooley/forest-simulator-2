@@ -11,6 +11,6 @@ uniform sampler2D texture1;
 uniform float time;
 
 void main() {
-	vec4 color = vec4(0., 1., 0., 1.);
+	vec4 color = vec4(1. - texCoord.x, texCoord.x, 0., 1.);
 	FragColor = color;
 }
