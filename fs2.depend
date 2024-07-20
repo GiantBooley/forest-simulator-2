@@ -1,0 +1,30 @@
+# depslib dependency file v1.0
+1706107379 source:/home/giantbooley/code/fs2/glad.c
+	<stdio.h>
+	<stdlib.h>
+	<string.h>
+	<glad/glad.h>
+	<windows.h>
+	<winapifamily.h>
+	<dlfcn.h>
+
+1721452937 source:/home/giantbooley/code/fs2/main.cpp
+	<glad/glad.h>
+	<GLFW/glfw3.h>
+	<AL/al.h>
+	<AL/alc.h>
+	<linmath.h>
+	<AudioFile.h>
+	<stb/stb_image.h>
+	<PerlinNoise.hpp>
+	<stdlib.h>
+	<iostream>
+	<fstream>
+	<vector>
+	<string>
+	<iomanip>
+	<sstream>
+	<filesystem>
+	<random>
+	<cstdlib>
+

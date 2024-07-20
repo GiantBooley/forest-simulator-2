@@ -224,7 +224,7 @@ public:
 	Vec2 pos{0.f, 0.f};
 	float zoomTarget = 7.f;
 	float zoom = zoomTarget;
-	
+
 	float left(float z) {
 		return pos.x - 2.f * (zoom - z);
 	}
@@ -302,14 +302,14 @@ class Shader {
 	Shader(string fileName, int shaderType) {
 
 		string shaderText = getFileText(fileName);
-		
+
 		const char* text = shaderText.c_str();
 		shader = glCreateShader(shaderType);
 		glShaderSource(shader, 1, &text, NULL);
 		glCompileShader(shader);
 
 		// erors
-		GLint success = GL_FALSE;  
+		GLint success = GL_FALSE;
 		GLint infoLogLength;
 		char infoLog[512];
 		glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
@@ -355,7 +355,7 @@ class Material {
 
 			stbi_image_free(textureBytes);
 			program = glCreateProgram();
-		
+
 			glAttachShader(program, vertexShader);
 			glAttachShader(program, fragmentShader);
 			glLinkProgram(program);
@@ -399,7 +399,7 @@ class Item {
 
 	float punchDelay = 0.5f;
 
-	Item(int typea) {
+	Item(int typea=0) {
 		type = typea;
 		switch (type) {
 			case itypes::none:
@@ -433,7 +433,7 @@ class Item {
 			/* ========================*/
 
 			case itypes::snow:
-			
+
 			break;
 
 			case itypes::stone:
@@ -443,7 +443,7 @@ class Item {
 						break;
 
 			case itypes::wood:
-			
+
 			break;
 
 			case itypes::log:
@@ -460,7 +460,7 @@ class ItemSword : public Item {
 		size = {0.3f, 1.f};
 		punchDelay = 0.5f;
 	}
-}
+};
 class ItemExcalibur : public Item {
 	ItemExcalibur() : Item() {
 		durability = 100.f;
@@ -470,7 +470,7 @@ class ItemExcalibur : public Item {
 		punchDelay = 0.12f;
 		emission = {0.1f, 0.02f, 0.02f};
 	}
-}
+};
 class ItemBurger : public Item {
 	ItemBurger() : Item() {
 		durability = 5.f;
@@ -481,7 +481,7 @@ class ItemBurger : public Item {
 		isEdible = true;
 		eatingHealth = 3.f;
 	}
-}
+};
 class ItemLantern : public Item {
 	ItemLantern() : Item() {
 		durability = 5.f;
@@ -492,7 +492,7 @@ class ItemLantern : public Item {
 		emission = {0.3f, 0.15f, 0.15f};
 
 	}
-}
+};
 class ItemPickaxe : public Item {
 	ItemPickaxe() : Item() {
 		durability = 250.f;
@@ -502,7 +502,7 @@ class ItemPickaxe : public Item {
 		punchDelay = 1.25f;
 
 	}
-}
+};
 class ItemAntbread : public Item {
 	ItemAntbread() : Item() {
 		durability = 3.f;
@@ -514,7 +514,7 @@ class ItemAntbread : public Item {
 		eatingHealth = 1.5f;
 
 	}
-}
+};
 class ItemSnow : public Item {
 	ItemSnow() : Item() {
 		durability = 25.f;
@@ -523,7 +523,7 @@ class ItemSnow : public Item {
 		size = {1.f, 1.f};
 		punchDelay = 1.f;
 	}
-}
+};
 class ItemStone : public Item {
 	ItemStone() : Item() {
 		durability = 25.f;
@@ -532,7 +532,7 @@ class ItemStone : public Item {
 		size = {1.f, 1.f};
 		punchDelay = 1.f;
 	}
-}
+};
 class ItemDirt : public Item {
 	ItemDirt() : Item() {
 		durability = 25.f;
@@ -542,7 +542,7 @@ class ItemDirt : public Item {
 		punchDelay = 1.f;
 
 	}
-}
+};
 class ItemWood : public Item {
 	ItemWood() : Item() {
 		durability = 25.f;
@@ -551,7 +551,7 @@ class ItemWood : public Item {
 		size = {1.f, 1.f};
 		punchDelay = 1.f;
 	}
-}
+};
 class ItemLog : public Item {
 	ItemLog() : Item() {
 		durability = 25.f;
@@ -560,7 +560,7 @@ class ItemLog : public Item {
 		size = {1.f, 1.f};
 		punchDelay = 1.f;
 	}
-}
+};
 class SkinList {
 	public:
 	vector<string> list;
@@ -596,7 +596,7 @@ public:
 	float particleEmitTimer = 0.f;
 	float particleEmitDelay = 0.1f;
 	float age = 0.f;
-	
+
 	Entity(string maaterial, int caontrolsType, Vec2 saize, float haealth, bool caanPickUpStuff) {
 		for (int i = 0; i < 8; i++) {
 			items.push_back({itypes::none});
@@ -956,7 +956,7 @@ class World {
 					setLocalGSTile(rx + 1, ry + 6, {ttypes::leaves});
 					setLocalGSTile(rx + 1, ry + 7, {ttypes::leaves});
 					setLocalGSTile(rx + 1, ry + 8, {ttypes::leaves});
-					
+
 					setLocalGSTile(rx - 2, ry + 6, {ttypes::leaves});
 					setLocalGSTile(rx - 2, ry + 7, {ttypes::leaves});
 					setLocalGSTile(rx + 2, ry + 6, {ttypes::leaves});
@@ -992,7 +992,7 @@ class World {
 			}
 		}
 
-		// emit skylight from top 
+		// emit skylight from top
 		int right = floor(camera.right(0.f));
 		for (int x = floor(camera.left(0.f)); x < right; x++) {
 			photons.push_back({
@@ -1039,7 +1039,7 @@ class World {
 					photons.erase(photons.begin() + i);
 					break;
 				}
-				
+
 				// X movement
 				if (isPointAir(photons.at(i).x + photons.at(i).xv, photons.at(i).y)) photons.at(i).x += photons.at(i).xv;
 				else { // diffuse
@@ -1050,7 +1050,7 @@ class World {
 					photons.at(i).g -= 0.1f;
 					photons.at(i).b -= 0.1f;
 				}
-				
+
 				// Y movement
 				if (isPointAir(photons[i].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
 				else {
@@ -1061,7 +1061,7 @@ class World {
 					photons.at(i).g -= 0.1f;
 					photons.at(i).b -= 0.1f;
 				}
-				
+
 				addColorToRGAndBInCurrentLightmapTile((int)floor(photons.at(i).x), (int)floor(photons.at(i).y), photons.at(i).r, photons.at(i).g, photons.at(i).b);
 			}
 		}
@@ -1179,9 +1179,9 @@ class World {
 		for (int i = 0; i < (int)entities.size(); i++) {
 			if (!entities.at(i)->isDamagable) continue;
 			if (
-				right > entities.at(i)->pos.x - entities.at(i)->size.x / 2.f && 
-				left < entities.at(i)->pos.x + entities.at(i)->size.x / 2.f && 
-				e->pos.y + e->size.y / 2.f > entities.at(i)->pos.y - entities.at(i)->size.y / 2.f && 
+				right > entities.at(i)->pos.x - entities.at(i)->size.x / 2.f &&
+				left < entities.at(i)->pos.x + entities.at(i)->size.x / 2.f &&
+				e->pos.y + e->size.y / 2.f > entities.at(i)->pos.y - entities.at(i)->size.y / 2.f &&
 				e->pos.y - e->size.y / 2.f < entities.at(i)->pos.y + entities.at(i)->size.y / 2.f
 			) {
 				particles.push_back({{entities.at(i)->pos.x, entities.at(i)->pos.y + entities.at(i)->size.y}, {0.f, 1.f}, {1.f, 1.f}, 1.f, "damage_heart"});
@@ -1363,7 +1363,7 @@ class GameState {
 			} else {
 				friction = 0.5f;
 			}
-			
+
 			e->vel.y += gravity * dt;
 			float netMovement = controlsRight - controlsLeft;
 			if (netMovement != 0.f) {
@@ -1378,7 +1378,7 @@ class GameState {
 				e->pos.x -= e->vel.x * dt;
 				e->vel.x = 0.f;
 			}
-			
+
 			//y collision n stuff
 			e->pos.y += e->vel.y * dt;
 			float oldOnGround = e->onGround;
@@ -1833,7 +1833,7 @@ public:
 		materials.push_back({"button_disabled"			, guiV.shader	, guiGrayscaleF.shader	, "resources/texture/button.png"});
 		materials.push_back({"empty"					, solidV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
 		materials.push_back({"gui_empty"				, guiV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
-		
+
 		materials.push_back({"gui_font"				    , fontV.shader , guiF.shader			, "resources/texture/font.png"});
 
 		// create index buffers
@@ -1991,13 +1991,13 @@ public:
 
 		glEnableVertexAttribArray(materials.at(id).vpos_location);
 		glVertexAttribPointer(materials.at(id).vpos_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)0);
-	
+
 		glEnableVertexAttribArray(materials.at(id).vtexcoord_location);
 		glVertexAttribPointer(materials.at(id).vtexcoord_location, 2, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 3));
-	
+
 		glEnableVertexAttribArray(materials.at(id).vtilehealth_location);
 		glVertexAttribPointer(materials.at(id).vtilehealth_location, 1, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 5));
-	
+
 		glEnableVertexAttribArray(materials.at(id).vlightcolor_location);
 		glVertexAttribPointer(materials.at(id).vlightcolor_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 6));
 
@@ -2005,7 +2005,7 @@ public:
 		mat4x4 m, p, mvp;
 
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, materialIndices.at(id).size() * sizeof(unsigned int), &materialIndices.at(id)[0], GL_STATIC_DRAW);
-		
+
 		glBindTexture(GL_TEXTURE_2D, materials.at(id).texture);
 
 		mat4x4_identity(m);
@@ -2207,7 +2207,7 @@ private:
 			case '8':coords = {7.f, 2.f};break;
 			case '9':coords = {8.f, 2.f};break;
 			case '0':coords = {9.f, 2.f};break;
-			
+
 			case 'A':coords = {0.f, 1.f};break;
 			case 'B':coords = {1.f, 1.f};break;
 			case 'C':coords = {2.f, 1.f};break;
@@ -2234,7 +2234,7 @@ private:
 			case 'X':coords = {23.f, 1.f};break;
 			case 'Y':coords = {24.f, 1.f};break;
 			case 'Z':coords = {25.f, 1.f};break;
-			
+
 			case '!':coords = {26.f, 0.f};break;
 			case '@':coords = {27.f, 0.f};break;
 			case '#':coords = {28.f, 0.f};break;
@@ -2247,7 +2247,7 @@ private:
 			case ')':coords = {29.f, 1.f};break;
 			case '-':coords = {30.f, 1.f};break;
 			case '=':coords = {31.f, 1.f};break;
-			
+
 			case '`':coords = {10.f, 2.f};break;
 			case '~':coords = {11.f, 2.f};break;
 			case '_':coords = {12.f, 2.f};break;
@@ -2321,7 +2321,7 @@ int main(void) {
 	}
 
 	GLFWimage images[1]{};
-	images[0].pixels = stbi_load("icon.png", &images[0].width, &images[0].height, 0, 4); //rgba channels 
+	images[0].pixels = stbi_load("icon.png", &images[0].width, &images[0].height, 0, 4); //rgba channels
 	glfwSetWindowIcon(window, 1, images);
 	stbi_image_free(images[0].pixels);
 
@@ -2359,18 +2359,18 @@ int main(void) {
 				fps = fpsCounter;
 				fpsCounter = 0U;
 			}
-	
+
 			glfwGetFramebufferSize(window, &width, &height);
 			width = max(width, 1);
 			height = max(height, 1);
-	
+
 			game.dt = min(0.5f * (float)frameTime, 0.5f);
 			for (int i = 0; i < 2; i++) {
 				game.tick();
 			}
 			renderer.renderMaterials();
 			soundDoer.tickSounds();
-	
+
 			glfwSwapBuffers(window);
 		}
 		glfwPollEvents();
