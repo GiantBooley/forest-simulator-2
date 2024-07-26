@@ -13,7 +13,12 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-g" />
+					<Add option="-Iinclude" />
 				</Compiler>
+				<Linker>
+					<Add library="lib/libglfw3.a" />
+					<Add library="openal" />
+				</Linker>
 			</Target>
 			<Target title="Release">
 				<Option output="bin/Release/fs2" prefix_auto="1" extension_auto="1" />
@@ -22,15 +27,92 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-O2" />
+					<Add option="-Iinclude" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
+					<Add library="lib/libglfw3.a" />
+					<Add library="openal" />
 				</Linker>
 			</Target>
 		</Build>
 		<Compiler>
 			<Add option="-Wall" />
 		</Compiler>
+		<Unit filename="glad.c">
+			<Option compilerVar="CC" />
+		</Unit>
+		<Unit filename="icon.png" />
+		<Unit filename="main.cpp" />
+		<Unit filename="resources/audio/brain.wav" />
+		<Unit filename="resources/shader/empty.fsh" />
+		<Unit filename="resources/shader/font.vsh" />
+		<Unit filename="resources/shader/gui.fsh" />
+		<Unit filename="resources/shader/gui.vsh" />
+		<Unit filename="resources/shader/gui_grayscale.fsh" />
+		<Unit filename="resources/shader/health_bar_background.fsh" />
+		<Unit filename="resources/shader/health_bar_green.fsh" />
+		<Unit filename="resources/shader/solid.fsh" />
+		<Unit filename="resources/shader/solid.vsh" />
+		<Unit filename="resources/texture/antbread.png" />
+		<Unit filename="resources/texture/blood_vignette.png" />
+		<Unit filename="resources/texture/burger.png" />
+		<Unit filename="resources/texture/button.png" />
+		<Unit filename="resources/texture/cloud.png" />
+		<Unit filename="resources/texture/damage_heart.png" />
+		<Unit filename="resources/texture/dark_energy.png" />
+		<Unit filename="resources/texture/dirt.png" />
+		<Unit filename="resources/texture/excalibur.png" />
+		<Unit filename="resources/texture/font.png" />
+		<Unit filename="resources/texture/grass.png" />
+		<Unit filename="resources/texture/heart.png" />
+		<Unit filename="resources/texture/hills.png" />
+		<Unit filename="resources/texture/items_selected.png" />
+		<Unit filename="resources/texture/items_slot.png" />
+		<Unit filename="resources/texture/lantern.png" />
+		<Unit filename="resources/texture/leaves.png" />
+		<Unit filename="resources/texture/log.png" />
+		<Unit filename="resources/texture/merchant.png" />
+		<Unit filename="resources/texture/mimic.png" />
+		<Unit filename="resources/texture/outline.png" />
+		<Unit filename="resources/texture/pickaxe.png" />
+		<Unit filename="resources/texture/select.png" />
+		<Unit filename="resources/texture/sentry.png" />
+		<Unit filename="resources/texture/sentry_shack.png" />
+		<Unit filename="resources/texture/sentry_shack_bottom.png" />
+		<Unit filename="resources/texture/sentry_shack_middle.png" />
+		<Unit filename="resources/texture/sentry_shack_top.png" />
+		<Unit filename="resources/texture/shop_bg.png" />
+		<Unit filename="resources/texture/skins/archibald.png" />
+		<Unit filename="resources/texture/skins/barbara.png" />
+		<Unit filename="resources/texture/skins/betty.png" />
+		<Unit filename="resources/texture/skins/body_gregger.png" />
+		<Unit filename="resources/texture/skins/charles.png" />
+		<Unit filename="resources/texture/skins/constantine.png" />
+		<Unit filename="resources/texture/skins/cornelius.png" />
+		<Unit filename="resources/texture/skins/garfunkel.png" />
+		<Unit filename="resources/texture/skins/gilgamesh.png" />
+		<Unit filename="resources/texture/skins/glenn.png" />
+		<Unit filename="resources/texture/skins/graham.png" />
+		<Unit filename="resources/texture/skins/gregger.png" />
+		<Unit filename="resources/texture/skins/guinevere.png" />
+		<Unit filename="resources/texture/skins/howard.png" />
+		<Unit filename="resources/texture/skins/hubert.png" />
+		<Unit filename="resources/texture/skins/johnstone.png" />
+		<Unit filename="resources/texture/skins/nathaniel.png" />
+		<Unit filename="resources/texture/skins/richard.png" />
+		<Unit filename="resources/texture/skins/tim.png" />
+		<Unit filename="resources/texture/skins/vivian.png" />
+		<Unit filename="resources/texture/skins/wolfgang.png" />
+		<Unit filename="resources/texture/skull.png" />
+		<Unit filename="resources/texture/sky.png" />
+		<Unit filename="resources/texture/snow.png" />
+		<Unit filename="resources/texture/stone.png" />
+		<Unit filename="resources/texture/stone_background.png" />
+		<Unit filename="resources/texture/sweep.png" />
+		<Unit filename="resources/texture/sword.png" />
+		<Unit filename="resources/texture/tile_cracks.png" />
+		<Unit filename="resources/texture/wood.png" />
 		<Extensions />
 	</Project>
 </CodeBlocks_project_file>
