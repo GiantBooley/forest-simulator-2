@@ -280,29 +280,55 @@ string getFileText(string path) {
 }
 class Shader {
 	public:
-	GLuint shader;
+	GLuint id;
 	Shader(string fileName, int shaderType) {
 
 		string shaderText = getFileText(fileName);
 
 		const char* text = shaderText.c_str();
-		shader = glCreateShader(shaderType);
-		glShaderSource(shader, 1, &text, NULL);
-		glCompileShader(shader);
+		id = glCreateShader(shaderType);
+		glShaderSource(id, 1, &text, NULL);
+		glCompileShader(id);
 
 		// erors
 		GLint success = GL_FALSE;
 		GLint infoLogLength;
 		char infoLog[512];
-		glGetShaderiv(shader, GL_COMPILE_STATUS, &success);
-		glGetShaderiv(shader, GL_INFO_LOG_LENGTH, &infoLogLength);
-		glGetShaderInfoLog(shader, 512, NULL, infoLog);
+		glGetShaderiv(id, GL_COMPILE_STATUS, &success);
+		glGetShaderiv(id, GL_INFO_LOG_LENGTH, &infoLogLength);
+		glGetShaderInfoLog(id, 512, NULL, infoLog);
 		if (infoLogLength > 0) {
 			cerr << "[ERROR] " << infoLog << endl;
 		}
 		if (!success){
-			glDeleteShader(shader);
+			glDeleteShader(id);
 		} else cout << "[INFO] Loaded " << (shaderType == GL_VERTEX_SHADER ? "vertex shader" : "fragment shader") << " \"" << fileName << "\"" << endl;
+	}
+};
+class Texture {
+public:
+	int width, height, colorChannels;
+	unsigned int id;
+	Texture(string filename) {
+		glGenTextures(1, &id);
+		glBindTexture(GL_TEXTURE_2D, id);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
+
+		unsigned char* data = stbi_load(filename.c_str(), &width, &height, &colorChannels, 0);
+		if (data) {
+			glTexImage2D(GL_TEXTURE_2D, 0, colorChannels == 4 ? GL_RGBA : GL_RGB, width, height, 0, colorChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, data);
+			glGenerateMipmap(GL_TEXTURE_2D);
+			cout << "[INFO] Loaded texture \"" << filename << "\"" << endl;
+		} else {
+			cerr << "[ERROR] Failed loading texture \"" << filename << "\"" << endl;
+		}
+
+		stbi_image_free(data);
 	}
 };
 class Material {
@@ -310,32 +336,15 @@ class Material {
 		GLint mvp_location, texture1_location, vpos_location, vtexcoord_location, vtilehealth_location, vlightcolor_location, time_location;
 		GLuint program;
 
-		int textureWidth, textureHeight, textureColorChannels;
 		unsigned char* textureBytes;
 		unsigned int texture;
 		string name = "";
 
-		Material(string namea, GLuint vertexShader, GLuint fragmentShader, string textureFile) {
+		Material(string namea, GLuint vertexShader, GLuint fragmentShader, unsigned int texId) {
 			name = namea;
-			glGenTextures(1, &texture);
-			glBindTexture(GL_TEXTURE_2D, texture);
 
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
+			texture = texId;
 
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
-			glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_REPEAT);
-
-			textureBytes = stbi_load(textureFile.c_str(), &textureWidth, &textureHeight, &textureColorChannels, 0);
-			if (textureBytes) {
-				glTexImage2D(GL_TEXTURE_2D, 0, textureColorChannels == 4 ? GL_RGBA : GL_RGB, textureWidth, textureHeight, 0, textureColorChannels == 4 ? GL_RGBA : GL_RGB, GL_UNSIGNED_BYTE, textureBytes);
-				glGenerateMipmap(GL_TEXTURE_2D);
-				cout << "[INFO] Loaded texture \"" << textureFile << "\"" << endl;
-			} else {
-				cerr << "[ERROR] Failed loading texture \"" << textureFile << "\"" << endl;
-			};
-
-			stbi_image_free(textureBytes);
 			program = glCreateProgram();
 
 			glAttachShader(program, vertexShader);
@@ -743,8 +752,7 @@ struct Photon {
 static const int SECT_SIZE = 128;
 class TileSection {
 public:
-	int x;
-	int y;
+	int x, y;
 	Tile tiles[SECT_SIZE][SECT_SIZE];
 	Tile bgTiles[SECT_SIZE][SECT_SIZE];
 	Vec3 lightmap[SECT_SIZE][SECT_SIZE];
@@ -764,16 +772,14 @@ public:
 	void solveLightmap() {
 		for (int x = 0; x < SECT_SIZE; x++) {
 			for (int y = 0; y < SECT_SIZE; y++) {
-				if (lightmapN[x][y] > 0) {
-					lightmap[x][y].r = (lightmap[x][y].r * (float)lightmapN[x][y] + currentLightmap[x][y].r) / (float)(lightmapN[x][y] + 1);
-					lightmap[x][y].g = (lightmap[x][y].g * (float)lightmapN[x][y] + currentLightmap[x][y].g) / (float)(lightmapN[x][y] + 1);
-					lightmap[x][y].b = (lightmap[x][y].b * (float)lightmapN[x][y] + currentLightmap[x][y].b) / (float)(lightmapN[x][y] + 1);
-				} else {
-					lightmap[x][y].r = currentLightmap[x][y].r;
-					lightmap[x][y].g = currentLightmap[x][y].g;
-					lightmap[x][y].b = currentLightmap[x][y].b;
+				Vec3* lightTile = &lightmap[x][y];
+				int n = lightmapN[x][y];
+				if (n > 0) {
+					lightTile->r = (lightTile->r * n + currentLightmap[x][y].r) / (n + 1);
+					lightTile->g = (lightTile->g * n + currentLightmap[x][y].g) / (n + 1);
+					lightTile->b = (lightTile->b * n + currentLightmap[x][y].b) / (n + 1);
 				}
-				lightmapN[x][y] = min(lightmapN[x][y] + 1, 200);
+				lightmapN[x][y] = min(n + 1, 200);
 			}
 		}
 	}
@@ -878,13 +884,13 @@ class World {
 	void generateTileSection(int x, int y) {
 		gs = {x, y};
 		// 1: base terrain gen
-		for (int rx = 0; rx < SECT_SIZE; rx++) {
+		for (int rx = 0; rx < SECT_SIZE; rx++) { // relative x y
 			float height = getGeneratorHeight(rx + x * SECT_SIZE);
 			for (int ry = 0; ry < SECT_SIZE; ry++) {
 				Tile t = generateTile(rx + x * SECT_SIZE, ry + y * SECT_SIZE, height, true);
 				setLocalGSTile(rx, ry, t);
 				setLocalGSBGTile(rx, ry, t);
-				gs.lightmap[rx][ry] = gs.currentLightmap[rx][ry] = {0.f, 0.f, 0.f};
+				gs.lightmap[rx][ry] = gs.currentLightmap[rx][ry] = {1.f ,1.f, 1.f};
 				gs.lightmapN[rx][ry] = 0;
 			}
 		}
@@ -922,12 +928,6 @@ class World {
 		}
 		cout << "new size: " << sizeof(gs) << endl;
 		return sections.push_back(gs);
-	}
-	TileAddress getTileAddress(int x, int y) {
-		for (int i = 0; i < (int)sections.size(); i++) {
-			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) return {i, mod(x, SECT_SIZE), mod(y, SECT_SIZE)};
-		}
-		return {-1, 0, 0};
 	}
 	void lightingStep(vector<Light> lights, float dt) { // =================================================================== redo this function
 		float photonSpeed = 0.5f;
@@ -1023,15 +1023,18 @@ class World {
 		}
 
 		// Solve light map
-		for (int i = 0; i < (int)sections.size(); i++) {
+		/*for (int i = 0; i < (int)sections.size(); i++) {
 			sections.at(i).solveLightmap();
-		}
+		}*/
 	}
-	Tile getTile(int x, int y) {
+	TileAddress getTileAddr(int x, int y) {
 		for (int i = 0; i < (int)sections.size(); i++) {
-			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) return sections.at(i).tiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)];
+			if (
+				sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) &&
+				sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))
+				) return {i, mod(x, SECT_SIZE), mod(y, SECT_SIZE)};
 		}
-		return {ttypes::air};
+		return {-1, 0, 0};
 	}
 	void addColorToRGAndBInCurrentLightmapTile(int x, int y, float r, float g, float b) {
 		for (int i = 0; i < (int)sections.size(); i++) {
@@ -1051,14 +1054,10 @@ class World {
 			}
 		}
 	}
-	Tile getBgTile(int x, int y) {
-		for (int i = 0; i < (int)sections.size(); i++) {
-			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) return sections.at(i).bgTiles[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)];
-		}
-		return {ttypes::air};
-	}
 	bool isPointAir(float x, float y) {
-		return getTile((int)x, (int)y).type == ttypes::air;
+		TileAddress addr = getTileAddr((int)x, (int)y);
+		if (addr.i == -1) return true;
+		return sections.at(addr.i).tiles[addr.x][addr.y].type == ttypes::air;
 	}
 	void setTile(int x, int y, Tile t) {
 		for (int i = 0; i < (int)sections.size(); i++) {
@@ -1126,8 +1125,12 @@ class World {
 		bool facingRight = e->facingVector.x != -1;
 		particles.push_back({{e->pos.x + (facingRight ? e->size.x / 2.f + 0.5f : e->size.x / -2.f - 0.5f), e->pos.y + e->size.y / 2.f}, {0.f, 0.f}, {facingRight ? 1.f : -1.f, 1.f}, 0.3f, "sweep"});
 		for (int i = (int)e->size.y; i >= 0; i--) {
-			if (getTile((int)floor(e->pos.x) + (facingRight ? 1 : -1), (int)floor(e->pos.y) + i).type != ttypes::air) {
-				damageTile((int)floor(e->pos.x) + (facingRight ? 1 : -1), (int)floor(e->pos.y) + i, e->items.at(e->itemNumber)->damage);
+			int x = floor(e->pos.x) + (facingRight ? 1 : -1);
+			int y = floor(e->pos.y) + i;
+			TileAddress addr = getTileAddr(x, y);
+			if (addr.i == -1) continue;
+			if (sections.at(addr.i).tiles[addr.x][addr.y].type != ttypes::air) {
+				damageTile(x, y, e->items.at(e->itemNumber)->damage);
 				break;
 			}
 		}
@@ -1302,18 +1305,18 @@ class GameState {
 
 			float friction;
 			if (e->onGround) {
-				Tile frictionTile = world.getTile((int)floor(e->pos.x), (int)floor(e->pos.y - 0.1f));
-				if (frictionTile.type == ttypes::air) {
+				TileAddress frictionTileAddr = world.getTileAddr((int)floor(e->pos.x), (int)floor(e->pos.y - 0.1f));
+				if (frictionTileAddr.i == -1 || world.sections.at(frictionTileAddr.i).tiles[frictionTileAddr.x][frictionTileAddr.y].type == ttypes::air) {
 					float one = 1.f;
 					if (modf(e->pos.x, &one) > 0.5f) {
-						frictionTile = world.getTile((int)e->pos.x + 1, (int)(e->pos.y - 0.1f));
+						frictionTileAddr = world.getTileAddr((int)e->pos.x + 1, (int)(e->pos.y - 0.1f));
 					} else {
-						frictionTile = world.getTile((int)e->pos.x - 1, (int)(e->pos.y - 0.1f));
+						frictionTileAddr = world.getTileAddr((int)e->pos.x - 1, (int)(e->pos.y - 0.1f));
 					}
 				}
-				friction = frictionTile.friction;
+				if (frictionTileAddr.i != -1) friction = world.sections.at(frictionTileAddr.i).tiles[frictionTileAddr.x][frictionTileAddr.y].friction;
 			} else {
-				friction = 0.5f;
+				friction = 0.7f;
 			}
 
 			e->vel.y += gravity * dt;
@@ -1369,10 +1372,12 @@ class GameState {
 			if (e->type == etypes::player) {
 				for (int x = (int)floor(e->pos.x - e->size.x / 2.f); x < (int)ceil(e->pos.x + e->size.x / 2.f); x++) {
 					for (int y = (int)floor(e->pos.y); y < (int)ceil(e->pos.y + e->size.y); y++) {
-						if (world.getTile(x, y).type == ttypes::sentry_shack_middle) {
+						TileAddress addr = world.getTileAddr(x, y);
+						if (addr.i == -1) continue;
+						if (world.sections.at(addr.i).tiles[addr.x][addr.y].type == ttypes::sentry_shack_middle) {
 							world.setTile(x, y - 1, {ttypes::air});
 							world.setTile(x, y, {ttypes::air});
-							world.setTile(x, y + 1, {ttypes::air});
+							world.setTile(x, y + 1, {ttypes::air}); // fix fix fix fix fgix fix fix fix fgix fix fix fix fgix fix fix fix fgix fix fix fix fgix fix fix fix
 							Entity* e = new EntitySentry();
 							e->pos.x = (float)x;
 							e->pos.y = (float)y;
@@ -1665,6 +1670,7 @@ public:
 		float lr, lg, lb;
 	};
 
+	//shaders========================================================================================================
 	Shader solidV{"resources/shader/solid.vsh", GL_VERTEX_SHADER};
 	Shader guiV{"resources/shader/gui.vsh", GL_VERTEX_SHADER};
 	Shader fontV{"resources/shader/font.vsh", GL_VERTEX_SHADER};
@@ -1686,71 +1692,120 @@ public:
 	int getMatID(string name) {
 		return matIdMap[name];
 	}
-	void addBothSpaceMaterial(string name, string texture) {
-		materials.push_back({name, solidV.shader, solidF.shader, texture});
-		materials.push_back({name + "_gui", guiV.shader, guiF.shader, texture});
+	void addBothSpaceMaterial(string name, unsigned int texture) {
+		materials.push_back({name, solidV.id, solidF.id, texture});
+		materials.push_back({name + "_gui", guiV.id, guiF.id, texture});
 	}
 	GameStateRenderer(GameState* gam) {
 		game = gam;
-		//append materials
+
+
+		//textures====================================================================================================
+		string texPath = "resources/texture/";
+
+		Texture texEmpty				{texPath + "empty.png"};
+
+		Texture texSky					{texPath + "sky.png"};
+		Texture texStoneBackground		{texPath + "stone_background.png"};
+		Texture texHills				{texPath + "hills.png"};
+		Texture texCloud				{texPath + "cloud.png"};
+
+		Texture texDirt					{texPath + "dirt.png"};
+		Texture texSnow					{texPath + "snow.png"};
+		Texture texStone				{texPath + "stone.png"};
+		Texture texWood					{texPath + "wood.png"};
+		Texture texLog					{texPath + "log.png"};
+		Texture texLeaves				{texPath + "leaves.png"};
+		Texture texGrass				{texPath + "grass.png"};
+		Texture texSentryShackBottom	{texPath + "sentry_shack_bottom.png"};
+		Texture texSentryShackMiddle	{texPath + "sentry_shack_middle.png"};
+		Texture texSentryShackTop		{texPath + "sentry_shack_top.png"};
+
+		Texture texSentry				{texPath + "sentry.png"};
+		Texture texMimic				{texPath + "mimic.png"};
+		Texture texMerchant				{texPath + "merchant.png"};
+		Texture texTileCracks			{texPath + "tile_cracks.png"};
+		Texture texSelect				{texPath + "select.png"};
+		Texture texDarkEnergy			{texPath + "dark_energy.png"};
+		Texture texSkull				{texPath + "skull.png"};
+		Texture texDamageHeart			{texPath + "damage_heart.png"};
+		Texture texSweep				{texPath + "sweep.png"};
+		Texture texOutline				{texPath + "outline.png"};
+
+		Texture texSword				{texPath + "sword.png"};
+		Texture texExcalibur			{texPath + "excalibur.png"};
+		Texture texBurger				{texPath + "burger.png"};
+		Texture texAntbread				{texPath + "antbread.png"};
+		Texture texLantern				{texPath + "lantern.png"};
+		Texture texPickaxe				{texPath + "pickaxe.png"};
+
+		Texture texBloodVignette		{texPath + "blood_vignette.png"};
+		Texture texItemsSlot			{texPath + "items_slot.png"};
+		Texture texItemsSelected		{texPath + "items_selected.png"};
+		Texture texHeart				{texPath + "heart.png"};
+		Texture texShopBg				{texPath + "shop_bg.png"};
+		Texture texButton				{texPath + "button.png"};
+
+		Texture texFont				{texPath + "font.png"};
+
+		//append materials================================================================================================
 
 		//very background
-		materials.push_back({"sky"						, solidV.shader	, guiF.shader			, "resources/texture/sky.png"});
-		materials.push_back({"stone_background"			, solidV.shader	, solidF.shader			, "resources/texture/stone_background.png"});
-		materials.push_back({"hills"					, solidV.shader	, solidF.shader			, "resources/texture/hills.png"});
-		materials.push_back({"cloud"					, solidV.shader	, solidF.shader			, "resources/texture/cloud.png"});
+		materials.push_back({"sky"					, solidV.id	, guiF.id			, texSky.id});
+		materials.push_back({"stone_background"		, solidV.id	, solidF.id			, texStoneBackground.id});
+		materials.push_back({"hills"				, solidV.id	, solidF.id			, texHills.id});
+		materials.push_back({"cloud"				, solidV.id	, solidF.id			, texCloud.id});
 
 		// tiles
-		addBothSpaceMaterial("dirt"																, "resources/texture/dirt.png");
-		addBothSpaceMaterial("snow"																, "resources/texture/snow.png");
-		addBothSpaceMaterial("stone"															, "resources/texture/stone.png");
-		addBothSpaceMaterial("wood"																, "resources/texture/wood.png");
-		addBothSpaceMaterial("log"																, "resources/texture/log.png");
-		addBothSpaceMaterial("leaves"															, "resources/texture/leaves.png");
-		addBothSpaceMaterial("grass"															, "resources/texture/grass.png");
-		addBothSpaceMaterial("sentry_shack_bottom"												, "resources/texture/sentry_shack_bottom.png");
-		addBothSpaceMaterial("sentry_shack_middle"												, "resources/texture/sentry_shack_middle.png");
-		addBothSpaceMaterial("sentry_shack_top"													, "resources/texture/sentry_shack_top.png");
-		materials.push_back({"grass_left"				, solidV.shader	, solidF.shader			, "resources/texture/grass_left.png"});
-		materials.push_back({"grass_right"				, solidV.shader	, solidF.shader			, "resources/texture/grass_right.png"});
+		addBothSpaceMaterial("dirt"													, texDirt.id);
+		addBothSpaceMaterial("snow"													, texSnow.id);
+		addBothSpaceMaterial("stone"												, texStone.id);
+		addBothSpaceMaterial("wood"													, texWood.id);
+		addBothSpaceMaterial("log"													, texLog.id);
+		addBothSpaceMaterial("leaves"												, texLeaves.id);
+		addBothSpaceMaterial("grass"												, texGrass.id);
+		addBothSpaceMaterial("sentry_shack_bottom"									, texSentryShackBottom.id);
+		addBothSpaceMaterial("sentry_shack_middle"									, texSentryShackMiddle.id);
+		addBothSpaceMaterial("sentry_shack_top"										, texSentryShackTop.id);
 
 		//entities and particles
 		for (int i = 0; i < (int)skins.list.size(); i++) {
-			addBothSpaceMaterial("skin_" + skins.list.at(i), "resources/texture/skins/" + skins.list.at(i) + ".png");
+			Texture skinTex{texPath + "skins/" + skins.list.at(i) + ".png"};
+			addBothSpaceMaterial("skin_" + skins.list.at(i), skinTex.id);
 		}
-		materials.push_back({"sentry"					, solidV.shader	, solidF.shader			, "resources/texture/sentry.png"});
-		materials.push_back({"mimic"					, solidV.shader	, solidF.shader			, "resources/texture/mimic.png"});
-		materials.push_back({"merchant"					, solidV.shader	, solidF.shader			, "resources/texture/merchant.png"});
-		materials.push_back({"tile_cracks"				, solidV.shader	, solidF.shader			, "resources/texture/tile_cracks.png"});
-		materials.push_back({"select"					, solidV.shader	, solidF.shader			, "resources/texture/select.png"});
-		materials.push_back({"dark_energy"				, solidV.shader	, solidF.shader			, "resources/texture/dark_energy.png"});
-		materials.push_back({"skull"					, solidV.shader	, solidF.shader			, "resources/texture/skull.png"});
-		materials.push_back({"damage_heart"				, solidV.shader	, solidF.shader			, "resources/texture/damage_heart.png"});
-		materials.push_back({"sweep"					, solidV.shader	, solidF.shader			, "resources/texture/sweep.png"});
-		materials.push_back({"outline"					, solidV.shader	, solidF.shader			, "resources/texture/outline.png"});
+		materials.push_back({"sentry"				, solidV.id	, solidF.id			, texSentry.id});
+		materials.push_back({"mimic"				, solidV.id	, solidF.id			, texMimic.id});
+		materials.push_back({"merchant"				, solidV.id	, solidF.id			, texMerchant.id});
+		materials.push_back({"tile_cracks"			, solidV.id	, solidF.id			, texTileCracks.id});
+		materials.push_back({"select"				, solidV.id	, solidF.id			, texSelect.id});
+		materials.push_back({"dark_energy"			, solidV.id	, solidF.id			, texDarkEnergy.id});
+		materials.push_back({"skull"				, solidV.id	, solidF.id			, texSkull.id});
+		materials.push_back({"damage_heart"			, solidV.id	, solidF.id			, texDamageHeart.id});
+		materials.push_back({"sweep"				, solidV.id	, solidF.id			, texSweep.id});
+		materials.push_back({"outline"				, solidV.id	, solidF.id			, texOutline.id});
 
 		// items
-		addBothSpaceMaterial("sword"															, "resources/texture/sword.png");
-		addBothSpaceMaterial("excalibur"														, "resources/texture/excalibur.png");
-		addBothSpaceMaterial("burger"															, "resources/texture/burger.png");
-		addBothSpaceMaterial("antbread"															, "resources/texture/antbread.png");
-		addBothSpaceMaterial("lantern"															, "resources/texture/lantern.png");
-		addBothSpaceMaterial("pickaxe"															, "resources/texture/pickaxe.png");
+		addBothSpaceMaterial("sword"												, texSword.id);
+		addBothSpaceMaterial("excalibur"											, texExcalibur.id);
+		addBothSpaceMaterial("burger"												, texBurger.id);
+		addBothSpaceMaterial("antbread"												, texAntbread.id);
+		addBothSpaceMaterial("lantern"												, texLantern.id);
+		addBothSpaceMaterial("pickaxe"												, texPickaxe.id);
 
 		// gui
-		materials.push_back({"blood_vignette"			, guiV.shader	, guiF.shader			, "resources/texture/blood_vignette.png"});
-		materials.push_back({"items_slot"				, guiV.shader	, guiF.shader			, "resources/texture/items_slot.png"});
-		materials.push_back({"items_selected"			, guiV.shader	, guiF.shader			, "resources/texture/items_selected.png"});
-		materials.push_back({"health_green"				, guiV.shader	, healthBarGreenF.shader, "resources/texture/items_selected.png"});
-		materials.push_back({"health_bg"				, guiV.shader	, healthBarBgF.shader	, "resources/texture/items_selected.png"});
-		materials.push_back({"heart"					, guiV.shader	, guiF.shader			, "resources/texture/heart.png"});
-		materials.push_back({"shop_bg"					, guiV.shader	, guiF.shader			, "resources/texture/shop_bg.png"});
-		materials.push_back({"button"					, guiV.shader	, guiF.shader			, "resources/texture/button.png"});
-		materials.push_back({"button_disabled"			, guiV.shader	, guiGrayscaleF.shader	, "resources/texture/button.png"});
-		materials.push_back({"empty"					, solidV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
-		materials.push_back({"gui_empty"				, guiV.shader	, emptyF.shader			, "resources/texture/dirt.png"});
+		materials.push_back({"blood_vignette"		, guiV.id	, guiF.id			, texBloodVignette.id});
+		materials.push_back({"items_slot"			, guiV.id	, guiF.id			, texItemsSlot.id});
+		materials.push_back({"items_selected"		, guiV.id	, guiF.id			, texItemsSelected.id});
+		materials.push_back({"health_green"			, guiV.id	, healthBarGreenF.id, texEmpty.id});
+		materials.push_back({"health_bg"			, guiV.id	, healthBarBgF.id	, texEmpty.id});
+		materials.push_back({"heart"				, guiV.id	, guiF.id			, texHeart.id});
+		materials.push_back({"shop_bg"				, guiV.id	, guiF.id			, texShopBg.id});
+		materials.push_back({"button"				, guiV.id	, guiF.id			, texButton.id});
+		materials.push_back({"button_disabled"		, guiV.id	, guiGrayscaleF.id	, texButton.id});
+		materials.push_back({"empty"				, solidV.id	, emptyF.id			, texEmpty.id});
+		materials.push_back({"gui_empty"			, guiV.id	, emptyF.id			, texEmpty.id});
 
-		materials.push_back({"gui_font"				    , fontV.shader , guiF.shader			, "resources/texture/font.png"});
+		materials.push_back({"gui_font"			    , fontV.id , guiF.id			, texFont.id});
 
 		// create index buffers
 		for (int i = 0; i < (int)materials.size(); i++) {
@@ -2020,12 +2075,15 @@ private:
 	}
 	void addTile(int x, int y, int z, int type, float lightR, float lightG, float lightB, bool isBackground) {
 		float uvSize;
+		TileAddress addr;
 		switch (type) {
-			case ttypes::air:
+		case ttypes::air:
 			//addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("air"), 1.f, lightR, lightG, lightB);
 			break;
-			case ttypes::dirt:
-			if ((isBackground ? game->world.getBgTile(x, y + 1) : game->world.getTile(x, y + 1)).type == ttypes::air) {
+		case ttypes::dirt:
+			addr = game->world.getTileAddr(x, y + 1);
+			if (addr.i == -1) break;
+			if ((isBackground ? game->world.sections.at(addr.i).bgTiles[addr.x][addr.y] : game->world.sections.at(addr.i).tiles[addr.x][addr.y]).type == ttypes::air) {
 				uvSize = 10.f;
 				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
 			} else {
@@ -2033,29 +2091,29 @@ private:
 				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
 			}
 			break;
-			case ttypes::snow:
+		case ttypes::snow:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("snow"), 1.f, lightR, lightG, lightB);
 			break;
-			case ttypes::stone:
+		case ttypes::stone:
 			uvSize = 5.f;
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
 			break;
-			case ttypes::wood:
+		case ttypes::wood:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("wood"), 1.f, lightR, lightG, lightB);
 			break;
-			case ttypes::log:
+		case ttypes::log:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("log"), 1.f, lightR, lightG, lightB);
 			break;
-			case ttypes::leaves:
+		case ttypes::leaves:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("leaves"), 1.f, lightR, lightG, lightB);
 			break;
-			case ttypes::sentry_shack_bottom:
+		case ttypes::sentry_shack_bottom:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_bottom"), 1.f, lightR, lightG, lightB);
 			break;
-			case ttypes::sentry_shack_middle:
+		case ttypes::sentry_shack_middle:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_middle"), 1.f, lightR, lightG, lightB);
 			break;
-			case ttypes::sentry_shack_top:
+		case ttypes::sentry_shack_top:
 			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_top"), 1.f, lightR, lightG, lightB);
 			break;
 		}
@@ -2251,7 +2309,7 @@ int main(void) {
 	glfwSetWindowIconifyCallback(window, iconify_callback);
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
-	glfwSwapInterval(0);
+	glfwSwapInterval(1);
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwSetWindowSizeLimits(window, 160, 90, 160000, 90000);
