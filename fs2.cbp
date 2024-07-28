@@ -13,17 +13,11 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-g" />
-					<Add option="-ldl" />
-					<Add option="-lgdi32" />
-					<Add option="-lopengl32" />
-					<Add option="-luser32" />
-					<Add option="-lshell32" />
-					<Add option="-lstdc++fs" />
 					<Add option="-Iinclude" />
 				</Compiler>
 				<Linker>
-					<Add library="lib/libglfw3.a" />
-					<Add library="lib/libOpenAL32.dll.a" />
+					<Add library="lib/libglfw3linux.a" />
+					<Add library="openal" />
 				</Linker>
 			</Target>
 			<Target title="Release">
@@ -33,18 +27,12 @@
 				<Option compiler="gcc" />
 				<Compiler>
 					<Add option="-O2" />
-					<Add option="-ldl" />
-					<Add option="-lgdi32" />
-					<Add option="-lopengl32" />
-					<Add option="-luser32" />
-					<Add option="-lshell32" />
-					<Add option="-lstdc++fs" />
 					<Add option="-Iinclude" />
 				</Compiler>
 				<Linker>
 					<Add option="-s" />
-					<Add library="lib/libglfw3.a" />
-					<Add library="lib/libOpenAL32.dll.a" />
+					<Add library="lib/libglfw3linux.a" />
+					<Add library="openal" />
 				</Linker>
 			</Target>
 		</Build>

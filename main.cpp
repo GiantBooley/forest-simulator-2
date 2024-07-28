@@ -244,11 +244,6 @@ string commas(float f) {
 	return otherit;
 }
 Controls controls;
-unsigned int fps = 0U;
-unsigned int fpsCounter = fps;
-double lastFpsTime = 0.; // resets every second
-double frameTime = 0.;
-double lastFrameTime = 0.;
 string getFileNameFromPath(string path) {
 	for (int i = (int)path.size() - 1; i >= 0; i--) {
 		if (i == 0 || path.at(i) == '/' || path.at(i) == '\\') {
@@ -814,7 +809,7 @@ class World {
 	float time = 0.f;
 	World() {
 		for (int i = 0; i < 500; i++) {
-			clouds.push_back({randFloat() * 10000.f, randFloat() * 10.f + 20.f, randFloat() * -3000.f - 10.f});
+			//clouds.push_back({randFloat() * 10000.f, randFloat() * 10.f + 20.f, randFloat() * -3000.f - 10.f});
 		}
 		Entity* player = new EntityPlayer();
 		player->pos.y = getGeneratorHeight(player->pos.x) + 5.f;
@@ -1821,7 +1816,7 @@ public:
 		glGenBuffers(1, &elementBuffer);
 		glBindBuffer(GL_ELEMENT_ARRAY_BUFFER, elementBuffer);
 	}
-	void buildThem() {
+	void buildThem(double fps) {
 		aspect = (float)width / (float)height;
 		clearVertices();
 
@@ -1867,27 +1862,7 @@ public:
 				addRotatedRect(e->pos.x - item->size.x / 4.f, e->pos.y + heightOffset, 0.003f, item->size.x / 2.f, item->size.y / 2.f, getMatID(item->material), sin(game->world.time * 4.f) * 0.03f, e->pos.x, e->pos.y + item->size.y / 4.f + heightOffset);
 			} else if (e->type == etypes::player) {
 				int fvx = game->world.entities.at(i)->facingVector.x;
-				//addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
-				float bodyX = e->pos.x - e->size.x / 2.f;
-				float bodyY = e->pos.y + e->size.y / 3.f;
-				float bodyWidth = e->size.x;
-				float bodyHeight = e->size.y / 3.f;
-				float leftLegX = e->pos.x - e->size.x / 2.f;
-				float rightLegX = e->pos.x + e->size.x / 6.f;
-				float legBottomY = e->pos.y;
-				float legTopY = e->pos.y + e->size.y / 6.f;
-				float legWidth = e->size.x / 3.f;
-				float legHeight = e->size.y / 6.f;
-				addRect(bodyX, bodyY, 0.f, bodyWidth, bodyHeight, getMatID("skin_body_gregger"));
-				float theta = e->pos.x * 2.5;
-				float leftLegBottomTopX = leftLegX + legWidth / 2.f + sin(theta) * legHeight;
-				float leftLegBottomTopY = legTopY + legHeight + cos(theta) * legHeight;
-				float rightLegBottomTopX = rightLegX + legWidth / 2.f + sin(PI + theta) * legHeight;
-				float rightLegBottomTopY = legTopY + legHeight + cos(PI + theta) * legHeight;
-				addRotatedRect(leftLegX, legTopY, 0.f, legWidth, legHeight, getMatID("stone"), theta + PI, leftLegX + legWidth / 2.f, legTopY + legHeight);
-				addRotatedRect(leftLegBottomTopX - legWidth / 2.f, leftLegBottomTopY - legHeight, 0.f, legWidth, legHeight, getMatID("stone"), game->world.time * 0.f, leftLegX + legWidth / 2.f, legBottomY + legHeight);
-				addRotatedRect(rightLegX, legTopY, 0.f, legWidth, legHeight, getMatID("stone"), theta, rightLegX + legWidth / 2.f, legTopY + legHeight);
-				addRotatedRect(rightLegBottomTopX - legWidth / 2.f, rightLegBottomTopY - legHeight, 0.f, legWidth, legHeight, getMatID("stone"), game->world.time * 0.f, rightLegX + legWidth / 2.f, legBottomY + legHeight);
+				addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
 				float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.1f) : (e->pos.x + e->size.x / 2.f + 0.1f);
 
 				Item* item = e->items.at(e->itemNumber);
@@ -1948,21 +1923,30 @@ public:
 		for (int i = 0; i < (int)materialIndices.size(); i++) {
 			tris += (int)materialIndices.at(i).size() / 3;
 		}
-		//addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
+		addText("tris: " + to_string(tris), -0.9f, 0.1f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		//addText("photons: " + to_string(game->world.photons.size()), -0.9f, -0.05f, -0.1f, 0.05f, 0.8f, 2.f, false);
 		//addText("block size: " + to_string((long long)((float)height / game->world.camera.zoom / 2.f)) + "px", -0.9f, -0.2f, -0.1f, 0.05f, 0.8f, 2.f, false);
 	}
-	void renderMaterials() {
+	void renderMaterials(double fps) {
 		glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
 		glViewport(0, 0, width, height);
-		buildThem();
+		buildThem(fps);
 		glBufferData(GL_ARRAY_BUFFER, vertices.size() * sizeof(vertices[0]), &vertices[0], GL_STATIC_DRAW);
+
+		float ratio = (float)width / (float)height;
+		mat4x4 m, p, mvp;
+		mat4x4_identity(m);
+		mat4x4_translate(m, -game->world.camera.pos.x, -game->world.camera.pos.y, -game->world.camera.zoom);
+		mat4x4_perspective(p, 1.57f, ratio, 0.01f, 100000.f);
+		mat4x4_mul(mvp, p, m);
+
 		for (int i = 0; i < (int)materials.size(); i++) {
-			if ((int)materialIndices.at(i).size() > 0) renderMaterial(i);
+			if ((int)materialIndices.at(i).size() > 0) renderMaterial(i, &mvp);
 		}
 
 	}
-	void renderMaterial(int id) {
+	void renderMaterial(int id, mat4x4* mvp) {
+		if ((int)materialIndices.at(id).size() == 0) return;
 		glEnableVertexAttribArray(materials.at(id).vpos_location);
 		glVertexAttribPointer(materials.at(id).vpos_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)0);
 
@@ -1975,28 +1959,17 @@ public:
 		glEnableVertexAttribArray(materials.at(id).vlightcolor_location);
 		glVertexAttribPointer(materials.at(id).vlightcolor_location, 3, GL_FLOAT, GL_FALSE, sizeof(vertices[0]), (void*)(sizeof(float) * 6));
 
-		float ratio = (float)width / (float)height;
-		mat4x4 m, p, mvp;
 
 		glBufferData(GL_ELEMENT_ARRAY_BUFFER, materialIndices.at(id).size() * sizeof(unsigned int), &materialIndices.at(id)[0], GL_STATIC_DRAW);
 
 		glBindTexture(GL_TEXTURE_2D, materials.at(id).texture);
 
-		mat4x4_identity(m);
-		//mat4x4_scale_aniso(m, m, ratio, 1.f, 1.f);
-		mat4x4_translate(m, -game->world.camera.pos.x, -game->world.camera.pos.y, -game->world.camera.zoom);
-		/*mat4x4_rotate_X(m, m, game->world.camera.rotation.x);
-		mat4x4_rotate_Y(m, m, game->world.camera.rotation.y);
-		mat4x4_rotate_Z(m, m, game->world.camera.rotation.z);*/
-		//mat4x4_ortho(p, -ratio, ratio, -1.f, 1.f, 1.f, -1.f);
-		mat4x4_perspective(p, 1.57f, ratio, 0.01f, 100000.f);
-		mat4x4_mul(mvp, p, m);
 
 		glUseProgram(materials.at(id).program);
 
 		glUniform1i(materials.at(id).texture1_location, 0);
 		glUniform1f(materials.at(id).time_location, game->world.time);
-		glUniformMatrix4fv(materials.at(id).mvp_location, 1, GL_FALSE, (const GLfloat*)mvp);
+		glUniformMatrix4fv(materials.at(id).mvp_location, 1, GL_FALSE, (const GLfloat*)(*mvp));
 		glDrawElements(GL_TRIANGLES, materialIndices.at(id).size(), GL_UNSIGNED_INT, (void*)0);
 	}
 private:
@@ -2282,6 +2255,12 @@ private:
 	}
 };
 
+struct PieItem {
+	string name;
+	double startTime;
+	double time;
+};
+
 int main(void) {
 	glfwSetErrorCallback(error_callback);
 
@@ -2309,7 +2288,7 @@ int main(void) {
 	glfwSetWindowIconifyCallback(window, iconify_callback);
 	glfwMakeContextCurrent(window);
 	gladLoadGL();
-	glfwSwapInterval(1);
+	glfwSwapInterval(0);
 
 	glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwSetWindowSizeLimits(window, 160, 90, 160000, 90000);
@@ -2321,9 +2300,21 @@ int main(void) {
 	glEnable(GL_MULTISAMPLE);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glClearColor(0.4f, 0.4f, 0.9f, 1.f);
-	lastFrameTime = glfwGetTime();
 
 	GameStateRenderer renderer{&game};
+
+	unsigned int fps = 0U;
+	unsigned int fpsCounter = fps;
+	double lastFpsTime = 0.; // resets every second
+	double frameTime = 0.;
+	double lastFrameTime = glfwGetTime();
+	PieItem pie[] = {
+		{"getframbufsize", 0.},
+		{"tick", 0.},
+		{"rendermats", 0.},
+		{"ticksounds", 0.},
+		{"swapbuf", 0.}
+	};
 
 	while (!glfwWindowShouldClose(window)) {
 		if (game.playing && !windowIconified) {
@@ -2334,22 +2325,38 @@ int main(void) {
 			if (glfwGetTime() - lastFpsTime > 1.) {
 				lastFpsTime = glfwGetTime();
 				fps = fpsCounter;
-				glfwSetWindowTitle(window, to_string(fps).c_str());
+				string title = to_string(fps) + ", " + to_string(frameTime * 1000.) + ", ";
+				for (size_t i = 0; i < sizeof(pie) / sizeof(PieItem); i++) {
+					title += pie[i].name + ": " + to_string(pie[i].time * 1000.) + "ms, ";
+				}
+				glfwSetWindowTitle(window, title.c_str());
 				fpsCounter = 0U;
 			}
 
+			pie[0].startTime = glfwGetTime();
 			glfwGetFramebufferSize(window, &width, &height);
 			width = max(width, 1);
 			height = max(height, 1);
+			pie[0].time = glfwGetTime() - pie[0].startTime;
 
+			pie[1].startTime = glfwGetTime();
 			game.dt = min(0.5f * (float)frameTime, 0.5f);
 			for (int i = 0; i < 2; i++) {
 				game.tick();
 			}
-			renderer.renderMaterials();
-			soundDoer.tickSounds();
+			pie[1].time = glfwGetTime() - pie[1].startTime;
 
+			pie[2].startTime = glfwGetTime();
+			renderer.renderMaterials(fps);
+			pie[2].time = glfwGetTime() - pie[2].startTime;
+
+			pie[3].startTime = glfwGetTime();
+			soundDoer.tickSounds();
+			pie[3].time = glfwGetTime() - pie[3].startTime;
+
+			pie[4].startTime = glfwGetTime();
 			glfwSwapBuffers(window);
+			pie[4].time = glfwGetTime() - pie[4].startTime;
 		}
 		glfwPollEvents();
 	}
