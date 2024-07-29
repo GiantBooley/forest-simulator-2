@@ -90,6 +90,9 @@ float lerpd(float a, float b, float t, float d) { // delta lerp
 struct Vec2 {
 	float x, y;
 };
+float lengthVec2(Vec2* v) {
+	return sqrt(v->x * v->x + v->y * v->y);
+}
 struct iVec2 {
 	int x, y;
 };
@@ -144,12 +147,19 @@ class SoundDoerBuffer {
 		alSourcei(monoSource, AL_BUFFER, monoSoundBuffer);
 	}
 };
+#define SOUND_BUTTON 0
+#define SOUND_DEATH 1
+#define SOUND_HURT 2
+#define SOUND_SENTRYAMBIENT 3
 class SoundDoer {
 	public:
 	ALCdevice* device;
 	ALCcontext* context;
 	vector<SoundDoerSound> sounds = {
-		//{false, 1.f, "resources/audio/brain.wav"},
+		{false, 1.f, "resources/audio/button.wav"},
+		{false, 1.f, "resources/audio/death.wav"},
+		{false, 1.f, "resources/audio/hurt.wav"},
+		{false, 1.f, "resources/audio/sentryAmbient.wav"}
 	};
 	vector<SoundDoerBuffer> buffers = {};
 	SoundDoer() {
@@ -200,7 +210,7 @@ SoundDoer soundDoer;
 
 
 struct Controls {
-	bool w, a, s, d, f, left, right, up, down, shift, space, mouseLeft, xPressed, bPressed, e;
+	bool w, a, s, d, f, left, right, up, down, shift, space, mouseLeft, mouseLeftPressed, bPressed, e;
 	Vec2 mousePos, worldMouse, clipMouse, previousClipMouse;
 };
 int width, height;
@@ -308,7 +318,7 @@ public:
 		glGenTextures(1, &id);
 		glBindTexture(GL_TEXTURE_2D, id);
 
-		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR_MIPMAP_LINEAR);
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
 
 		glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_REPEAT);
@@ -368,7 +378,7 @@ namespace etypes {
 }
 namespace ttypes {
 	enum types {
-		none,air,dirt,snow,stone,wood,log,leaves,sentry_shack_bottom,sentry_shack_middle,sentry_shack_top
+		none,air,dirt,snow,stone,wood,log,leaves,sentry_shack_bottom,sentry_shack_middle,sentry_shack_top,lava,stone_wall
 	};
 }
 class Item {
@@ -533,6 +543,16 @@ public:
 		punchDelay = 1.f;
 	}
 };
+class ItemStoneWall : public Item {
+public:
+	ItemStoneWall() : Item() {
+		durability = 25.f;
+		damage = 0.5f;
+		material = "stone_wall";
+		size = {1.f, 1.f};
+		punchDelay = 1.f;
+	}
+};
 class SkinList {
 	public:
 	vector<string> list;
@@ -559,7 +579,7 @@ public:
 	float speed = 1.6f;
 	vector<Item*> items;
 	int itemNumber = 0;
-	iVec2 facingVector = {0, 0};
+	Vec2 facingVector = {1.f, 0.f};// unnormalized
 	float punchDelayTimer = 0.f;
 	float swingRotation = 0.f;
 	float isSwinging = false;
@@ -682,7 +702,7 @@ class Tile {
 			case ttypes::log:
 				health = 10.f;
 				friction = 0.9f;
-				isSolid = true;
+				isSolid = false;
 				drops = new ItemLog();
 				break;
 			case ttypes::leaves:
@@ -705,6 +725,16 @@ class Tile {
 				health = 13.f;
 				friction = 0.1f;
 				isSolid = false;
+				break;
+			case ttypes::lava:
+				health = 20.f;
+				friction = 0.7f;
+				isSolid = true;
+				break;
+			case ttypes::stone_wall:
+				health = 50.f;
+				friction = 0.95f;
+				isSolid = true;
 				break;
 		}
 		maxHealth = health;
@@ -736,47 +766,15 @@ struct Particle {
 	float time;
 	string material;
 };
-struct Light {
-	Vec2 pos;
-	Vec3 intensity;
-};
-struct Photon {
-	float x, y, xv, yv;
-	float r, g, b;
-};
-static const int SECT_SIZE = 128;
+static const int SECT_SIZE = 64;
 class TileSection {
 public:
 	int x, y;
 	Tile tiles[SECT_SIZE][SECT_SIZE];
 	Tile bgTiles[SECT_SIZE][SECT_SIZE];
-	Vec3 lightmap[SECT_SIZE][SECT_SIZE];
-	Vec3 currentLightmap[SECT_SIZE][SECT_SIZE];
-	int lightmapN[SECT_SIZE][SECT_SIZE];
 	TileSection(int ax, int ay) {
 		x = ax;
 		y = ay;
-	}
-	void clearCurrentLightmap() {
-		for (int x = 0; x < SECT_SIZE; x++) {
-			for (int y = 0; y < SECT_SIZE; y++) {
-				currentLightmap[x][y] = {0.f, 0.f, 0.f};
-			}
-		}
-	}
-	void solveLightmap() {
-		for (int x = 0; x < SECT_SIZE; x++) {
-			for (int y = 0; y < SECT_SIZE; y++) {
-				Vec3* lightTile = &lightmap[x][y];
-				int n = lightmapN[x][y];
-				if (n > 0) {
-					lightTile->r = (lightTile->r * n + currentLightmap[x][y].r) / (n + 1);
-					lightTile->g = (lightTile->g * n + currentLightmap[x][y].g) / (n + 1);
-					lightTile->b = (lightTile->b * n + currentLightmap[x][y].b) / (n + 1);
-				}
-				lightmapN[x][y] = min(n + 1, 200);
-			}
-		}
 	}
 };
 struct TileAddress {
@@ -799,7 +797,6 @@ class World {
 	const siv::PerlinNoise perlin2{ seed };
 
 	vector<TileSection> sections;
-	vector<Photon> photons = {};
 
 	vector<Vec3> clouds;
 
@@ -808,25 +805,25 @@ class World {
 	TileSection gs{0, 0}; // generating section
 	float time = 0.f;
 	World() {
-		for (int i = 0; i < 500; i++) {
-			//clouds.push_back({randFloat() * 10000.f, randFloat() * 10.f + 20.f, randFloat() * -3000.f - 10.f});
-		}
+		/*for (int i = 0; i < 500; i++) {
+			clouds.push_back({randFloat() * 10000.f, randFloat() * 10.f + 20.f, randFloat() * -3000.f - 10.f});
+		}*/
 		Entity* player = new EntityPlayer();
 		player->pos.y = getGeneratorHeight(player->pos.x) + 5.f;
 		spawnEntity(player);
 	}
 	float getGeneratorHeight(float x) {
 		float height = 0.f;
-		float scale = 200.f;
+		float scale = 1000.f;
 		for (int i = 0; i < octaves; i++) {
 			float it = powf(2.f, (float)i);
-			height += gen[i].getVal(x / scale * it) / it * scale * 0.25f;
+			height += gen[i].getVal(x / scale * it) / it * scale * 0.4f;
 		}
 		return height;
 	}
 	Tile generateTile(int x, int y, float heightFake, bool hasHeight) {
 		float height = hasHeight ? heightFake : getGeneratorHeight(x);
-		int type = y < round(height) ? (y < round(height) - 10.f ? ttypes::stone : (y > 20 ? ttypes::snow : ttypes::dirt)) : ttypes::air;
+		int type = y < round(height) ? (y < round(height) - 10.f ? (y < round(height) - 10000.f ? ttypes::lava : ttypes::stone) : (y > 20 ? ttypes::snow : ttypes::dirt)) : ttypes::air;
 		if (perlin.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.25f || perlin2.octave2D_01((double)x / 10., (double)y / 10., 2) < 0.1f) type = ttypes::air;
 		return {type};
 	}
@@ -885,17 +882,22 @@ class World {
 				Tile t = generateTile(rx + x * SECT_SIZE, ry + y * SECT_SIZE, height, true);
 				setLocalGSTile(rx, ry, t);
 				setLocalGSBGTile(rx, ry, t);
-				gs.lightmap[rx][ry] = gs.currentLightmap[rx][ry] = {1.f ,1.f, 1.f};
-				gs.lightmapN[rx][ry] = 0;
 			}
 		}
 		// 2: tree n sentry shack generation
 		for (int rx = 0; rx < SECT_SIZE; rx++) {
 			for (int ry = 0; ry < SECT_SIZE; ry++) {
-				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type != ttypes::air && randFloat() < 0.01f) {
+				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type == ttypes::dirt && randFloat() < 0.002f) {
 					setLocalGSTile(rx, ry, {ttypes::sentry_shack_bottom});
 					setLocalGSTile(rx, ry + 1, {ttypes::sentry_shack_middle});
 					setLocalGSTile(rx, ry + 2, {ttypes::sentry_shack_top});
+				}
+				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type == ttypes::dirt && randFloat() < 0.01f) {
+					setLocalGSTile(rx, ry, {ttypes::stone_wall});
+					setLocalGSTile(rx, ry + 1, {ttypes::stone_wall});
+					setLocalGSTile(rx, ry + 2, {ttypes::stone_wall});
+					setLocalGSTile(rx, ry + 3, {ttypes::stone_wall});
+					setLocalGSTile(rx, ry + 4, {ttypes::stone_wall});
 				}
 				if (getLocalGSTile(rx, ry).type == ttypes::air && getLocalGSTile(rx, ry - 1).type == ttypes::dirt && randFloat() < 0.05f) {
 					setLocalGSTile(rx, ry, {ttypes::log});
@@ -921,106 +923,8 @@ class World {
 				}
 			}
 		}
-		cout << "new size: " << sizeof(gs) << endl;
+		//cout << "new size: " << sizeof(gs) << endl;
 		return sections.push_back(gs);
-	}
-	void lightingStep(vector<Light> lights, float dt) { // =================================================================== redo this function
-		float photonSpeed = 0.5f;
-		float howmanyper = 0.1f;
-
-		// Emit photons from lights
-		for (int i = (int)lights.size() - 1; i >= 0; i--) {
-			for (float r = 0; r < PI * 2.f; r += howmanyper) {
-				photons.push_back({
-					lights.at(i).pos.x,
-					lights.at(i).pos.y,
-					sin(r) * photonSpeed,
-					cos(r) * photonSpeed,
-					lights.at(i).intensity.r,
-					lights.at(i).intensity.g,
-					lights.at(i).intensity.b
-				});
-			}
-		}
-
-		// emit skylight from top
-		int right = floor(camera.right(0.f));
-		for (int x = floor(camera.left(0.f)); x < right; x++) {
-			photons.push_back({
-				(float)x + 0.5f,
-				camera.top(0.f),
-				0.f,
-				-1.f,
-				0.5f,
-				0.5f,
-				0.5f
-			});
-		}
-
-		// clear current light map
-		for (int i = 0; i < (int)sections.size(); i++) {
-			sections.at(i).clearCurrentLightmap();
-		}
-
-		// coop over every photon
-		for (int i = (int)photons.size() - 1; i >= 0; i--) {
-			for (int j = 0; j < 15; j++) { // rt steps per photon
-				// Delete photon if it is bad
-				if (
-					(photons.at(i).r + photons.at(i).g + photons.at(i).b) / 3.f <= 0.f ||
-					(
-						(
-							photons.at(i).x > camera.right(0.f) ||
-							photons.at(i).x < camera.left(0.f) ||
-							photons.at(i).y < camera.bottom(0.f) ||
-							photons.at(i).y > camera.top(0.f)
-						) &&
-						!lineRect(
-							photons.at(i).x,
-							photons.at(i).y,
-							photons.at(i).x + photons.at(i).xv * 32767.f,
-							photons.at(i).y + photons.at(i).yv * 32767.f,
-							camera.left(0.f),
-							camera.bottom(0.f),
-							camera.right(0.f) - camera.left(0.f),
-							camera.top(0.f) - camera.bottom(0.f)
-						)
-					)
-				) {
-					photons.erase(photons.begin() + i);
-					break;
-				}
-
-				// X movement
-				if (isPointAir(photons.at(i).x + photons.at(i).xv, photons.at(i).y)) photons.at(i).x += photons.at(i).xv;
-				else { // diffuse
-					addColorToRGAndBInCurrentLightmapTile((int)floor(photons.at(i).x + photons.at(i).xv), (int)floor(photons.at(i).y), photons.at(i).r, photons.at(i).g, photons.at(i).b);
-					photons.at(i).xv *= -1.f;
-					rotateVector(&photons.at(i).xv, &photons.at(i).yv, randFloat() * 3.14f - 1.57f);
-					photons.at(i).r -= 0.1f;
-					photons.at(i).g -= 0.1f;
-					photons.at(i).b -= 0.1f;
-				}
-
-				// Y movement
-				if (isPointAir(photons[i].x, photons[i].y + photons[i].yv)) photons[i].y += photons[i].yv;
-				else {
-					addColorToRGAndBInCurrentLightmapTile((int)floor(photons.at(i).x), (int)floor(photons.at(i).y + photons.at(i).yv), photons.at(i).r, photons.at(i).g, photons.at(i).b);
-					photons.at(i).yv *= -1.f;
-					rotateVector(&photons.at(i).xv, &photons.at(i).yv, randFloat() * 3.14f - 1.57f);
-					photons.at(i).r -= 0.1f;
-					photons.at(i).g -= 0.1f;
-					photons.at(i).b -= 0.1f;
-				}
-
-				addColorToRGAndBInCurrentLightmapTile((int)floor(photons.at(i).x), (int)floor(photons.at(i).y), photons.at(i).r, photons.at(i).g, photons.at(i).b);
-			}
-		}
-
-		// Solve light map
-		/*for (int i = 0; i < (int)sections.size(); i++) {
-			sections.at(i).solveLightmap();
-		}*/
 	}
 	TileAddress getTileAddr(int x, int y) {
 		for (int i = 0; i < (int)sections.size(); i++) {
@@ -1030,24 +934,6 @@ class World {
 				) return {i, mod(x, SECT_SIZE), mod(y, SECT_SIZE)};
 		}
 		return {-1, 0, 0};
-	}
-	void addColorToRGAndBInCurrentLightmapTile(int x, int y, float r, float g, float b) {
-		for (int i = 0; i < (int)sections.size(); i++) {
-			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
-				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].r += r;
-				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].g += g;
-				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].b += b;
-			}
-		}
-	}
-	void setToRGAndBInCurrentLightmapTile(int x, int y, float r, float g, float b) {
-		for (int i = 0; i < (int)sections.size(); i++) {
-			if (sections.at(i).x == (int)floor((float)x / static_cast<float>(SECT_SIZE)) && sections.at(i).y == (int)floor((float)y / static_cast<float>(SECT_SIZE))) {
-				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].r += r;
-				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].g += g;
-				sections.at(i).currentLightmap[mod(x, SECT_SIZE)][mod(y, SECT_SIZE)].b += b;
-			}
-		}
 	}
 	bool isPointAir(float x, float y) {
 		TileAddress addr = getTileAddr((int)x, (int)y);
@@ -1117,9 +1003,9 @@ class World {
 		e->punchDelayTimer = item->punchDelay;
 		e->swingRotation = 0.f;
 		e->isSwinging = true;
-		bool facingRight = e->facingVector.x != -1;
+		bool facingRight = e->facingVector.x > 0.f;
 		particles.push_back({{e->pos.x + (facingRight ? e->size.x / 2.f + 0.5f : e->size.x / -2.f - 0.5f), e->pos.y + e->size.y / 2.f}, {0.f, 0.f}, {facingRight ? 1.f : -1.f, 1.f}, 0.3f, "sweep"});
-		for (int i = (int)e->size.y; i >= 0; i--) {
+		/*for (int i = (int)e->size.y; i >= 0; i--) {
 			int x = floor(e->pos.x) + (facingRight ? 1 : -1);
 			int y = floor(e->pos.y) + i;
 			TileAddress addr = getTileAddr(x, y);
@@ -1128,7 +1014,9 @@ class World {
 				damageTile(x, y, e->items.at(e->itemNumber)->damage);
 				break;
 			}
-		}
+		}*/
+		damageTile((int)floor(e->pos.x + e->facingVector.x), (int)floor(e->pos.y + e->facingVector.y), e->items.at(e->itemNumber)->damage);
+
 		float right = facingRight ? (e->pos.x + e->size.x / 2.f + 1.f) : (e->pos.x - e->size.x / 2.f);
 		float left = facingRight ? (e->pos.x + e->size.x / 2.f) : (e->pos.x - e->size.x / 2.f - 1.f);
 		for (int i = 0; i < (int)entities.size(); i++) {
@@ -1142,11 +1030,12 @@ class World {
 				particles.push_back({{entities.at(i)->pos.x, entities.at(i)->pos.y + entities.at(i)->size.y}, {0.f, 1.f}, {1.f, 1.f}, 1.f, "damage_heart"});
 				entities.at(i)->health -= item->damage;
 				entities.at(i)->damageRedness = 1.f;
+				soundDoer.play(soundDoer.sounds[SOUND_HURT]);
 			}
 		}
 	}
 	void makeEntityDrop(Entity* e) {
-		bool facingRight = e->facingVector.x != -1;
+		bool facingRight = e->facingVector.x > 0.f;
 		Entity* item = new EntityItem();
 		item->items.at(0) = e->items.at(e->itemNumber);
 		item->pos.x = e->pos.x;
@@ -1188,6 +1077,17 @@ class GameState {
 
 		controls.worldMouse.x = controls.clipMouse.x * (world.camera.zoom * (float)width / (float)height) + world.camera.pos.x;
 		controls.worldMouse.y = controls.clipMouse.y * world.camera.zoom + world.camera.pos.y;
+
+		Entity* self = world.entities.at(world.self);
+		self->facingVector.x = controls.worldMouse.x - self->pos.x;
+		self->facingVector.y = controls.worldMouse.y - self->pos.y;
+
+		float length = lengthVec2(&self->facingVector);
+		if (length > 3.f) {
+			self->facingVector.x *= 3.f / length;
+			self->facingVector.y *= 3.f / length;
+		}
+
 		// Physics Tracing Extreme
 
 		if (controls.space) {
@@ -1198,12 +1098,11 @@ class GameState {
 
 		//find player is
 		vector<int> playerIs;
-		vector<Light> lights;
 		for (int i = 0; i < (int)world.entities.size(); i++) {
 			Entity* e = world.entities.at(i);
 			Item* item = e->items.at(e->itemNumber);
 			if (e->type == etypes::player) {
-				e->health -= dt * 0.1f;
+				if (!debug) e->health -= dt * 0.1f;
 				if (controls.e && item->isEdible) {
 					e->health += item->eatingHealth * dt;
 					if (e->health > e->maxHealth) e->health = e->maxHealth;
@@ -1213,27 +1112,18 @@ class GameState {
 					}
 				}
 				playerIs.push_back(i);
-				if (controls.xPressed) {
+				if (controls.mouseLeftPressed) {
 					world.makeEntityPunch(e);
-					controls.xPressed = false;
+					controls.mouseLeftPressed = false;
 				}
 				if (controls.bPressed) {
 					world.makeEntityDrop(e);
 					controls.bPressed = false;
 				}
-				/*if (
-					item->emission.r > 0.f ||
-					item->emission.g > 0.f ||
-					item->emission.b > 0.f
-				) lights.push_back({{e->pos.x, e->pos.y + e->size.y / 2.f}, item->emission});*/
 				item->emission.r -= 0.0001f;
 				item->emission.g -= 0.0001f;
 				item->emission.b -= 0.0001f;
 			}
-		}
-		//world.lightingStep(lights, dt);
-		if (controls.mouseLeft) {
-			world.damageTile((int)floor(controls.worldMouse.x), (int)floor(controls.worldMouse.y), 53.f * dt);
 		}
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			Entity* e = world.entities.at(i);
@@ -1316,9 +1206,6 @@ class GameState {
 
 			e->vel.y += gravity * dt;
 			float netMovement = controlsRight - controlsLeft;
-			if (netMovement != 0.f) {
-				e->facingVector = {(int)netMovement, 0};
-			}
 			e->vel.x = lerpd(e->vel.x, netMovement * (controls.shift ? 6.f : e->speed), friction, dt);
 
 			//x collision
@@ -1337,9 +1224,10 @@ class GameState {
 			if (collision.collided) {
 				e->pos.y -= e->vel.y * dt;
 				e->onGround = e->vel.y < 0.f;
-				if (!oldOnGround && e->onGround && e->isDamagable && e->vel.y <= -10.f) {
+				if (!oldOnGround && e->onGround && e->isDamagable && e->vel.y <= -10.f && !debug) {
 					e->health += (e->vel.y + 10.f) / 5.f;
 					e->damageRedness = 1.f;
+					soundDoer.play(soundDoer.sounds[SOUND_HURT]);
 				}
 				e->vel.y = 0.f;
 				if (controlsUp && e->onGround) {
@@ -1400,6 +1288,7 @@ class GameState {
 
 		for (int i = (int)world.entities.size() - 1; i >= 0; i--) {
 			if (world.entities.at(i)->health <= 0.f) {
+				soundDoer.play(soundDoer.sounds[SOUND_DEATH]);
 				world.particles.push_back({world.entities.at(i)->pos, {0.f, 1.f}, {1.f, 1.f}, 2.f, "skull"});
 				world.deleteEntity(i);
 			}
@@ -1493,6 +1382,7 @@ vector<Button> buttons = {
 	{"vsync: on", 2, -0.5f, 0.f, 0.3f, 0.1f, true, false},
 };
 void shopButton() {
+	soundDoer.play(soundDoer.sounds[SOUND_BUTTON]);
 	game.shopOpen = !game.shopOpen;
 	buttons.at(1).visible = game.shopOpen;
 	buttons.at(2).visible = game.shopOpen;
@@ -1556,7 +1446,6 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 			else if (key == GLFW_KEY_SPACE) {
 				controls.space = true;
 			}
-			else if (key == GLFW_KEY_X) controls.xPressed = true;
 			else if (key == GLFW_KEY_B) controls.bPressed = true;
 		}
 		else if (action == GLFW_RELEASE) {
@@ -1592,6 +1481,7 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 		//getting cursor position
 		glfwGetCursorPos(window, &xpos, &ypos);
 		controls.mouseLeft = true;
+		controls.mouseLeftPressed = true;
 		for (int i = 0; i < (int)buttons.size(); i++) {
 			if (buttons.at(i).visible && buttons.at(i).enabled && controls.clipMouse.x > buttons.at(i).x && controls.clipMouse.x < buttons.at(i).x + buttons.at(i).width && controls.clipMouse.y > buttons.at(i).y && controls.clipMouse.y < buttons.at(i).y + buttons.at(i).height) {
 				if (buttons.at(i).action == 0) shopButton();
@@ -1633,8 +1523,9 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
 			tileToPlace = ttypes::leaves;
 		}*/
 		if (didPlaceTile) {
-			game.world.setTile((int)floor(controls.worldMouse.x), (int)floor(controls.worldMouse.y), {ttypes::wood});
-			game.world.entities.at(game.world.self)->items.at(game.world.entities.at(game.world.self)->itemNumber) = new ItemNone();
+			Entity* self = game.world.entities.at(game.world.self);
+			game.world.setTile((int)floor(self->pos.x + self->facingVector.x), (int)floor(self->pos.y + self->facingVector.y), {ttypes::wood});
+			self->items.at(self->itemNumber) = new ItemNone();
 		}
 	}
 }
@@ -1715,6 +1606,8 @@ public:
 		Texture texSentryShackBottom	{texPath + "sentry_shack_bottom.png"};
 		Texture texSentryShackMiddle	{texPath + "sentry_shack_middle.png"};
 		Texture texSentryShackTop		{texPath + "sentry_shack_top.png"};
+		Texture texLava					{texPath + "lava.png"};
+		Texture texStoneWall			{texPath + "stone_wall.png"};
 
 		Texture texSentry				{texPath + "sentry.png"};
 		Texture texMimic				{texPath + "mimic.png"};
@@ -1762,6 +1655,8 @@ public:
 		addBothSpaceMaterial("sentry_shack_bottom"									, texSentryShackBottom.id);
 		addBothSpaceMaterial("sentry_shack_middle"									, texSentryShackMiddle.id);
 		addBothSpaceMaterial("sentry_shack_top"										, texSentryShackTop.id);
+		addBothSpaceMaterial("lava"													, texLava.id);
+		addBothSpaceMaterial("stone_wall"											, texStoneWall.id);
 
 		//entities and particles
 		for (int i = 0; i < (int)skins.list.size(); i++) {
@@ -1830,45 +1725,62 @@ public:
 			addRect(game->world.clouds.at(i).r, game->world.clouds.at(i).g, game->world.clouds.at(i).b, 150.f, 75.f, getMatID("cloud"));
 		}
 		for (int i = 0; i < (int)game->world.sections.size(); i++) {
+			TileSection* section = &game->world.sections.at(i);
+
+			//frustum culling
 			if (
-				(float)(game->world.sections.at(i).x * SECT_SIZE) > game->world.camera.right(0.f) ||
-				(float)((game->world.sections.at(i).x + 1) * SECT_SIZE) < game->world.camera.left(0.f) ||
-				(float)(game->world.sections.at(i).y * SECT_SIZE) > game->world.camera.top(0.f) ||
-				(float)((game->world.sections.at(i).y + 1) * SECT_SIZE) < game->world.camera.bottom(0.f)
+				(float)(section->x * SECT_SIZE) > game->world.camera.right(0.f) ||
+				(float)((section->x + 1) * SECT_SIZE) < game->world.camera.left(0.f) ||
+				(float)(section->y * SECT_SIZE) > game->world.camera.top(0.f) ||
+				(float)((section->y + 1) * SECT_SIZE) < game->world.camera.bottom(0.f)
 			) continue;
+			//loop over every tile in section
+			int yStep = 1;
 			for (int x = 0; x < SECT_SIZE; x++) {
-				if ((float)x + 1.f + (float)(game->world.sections.at(i).x * SECT_SIZE) < game->world.camera.left(0.f) - 2.f) continue;
-				if ((float)x + (float)(game->world.sections.at(i).x * SECT_SIZE) > game->world.camera.right(0.f) + 2.f) break;
-				//addRect(game->world.sections.at(i).x * SECT_SIZE + x, game->world.gen[2].getVal((float)(game->world.sections.at(i).x * SECT_SIZE + x) / 5.f), 0.08f, 1.f, 0.2f, getMatID("sky"));
-				for (int y = 0; y < SECT_SIZE; y++) {
-					if ((float)y + 1.f + (float)(game->world.sections.at(i).y * SECT_SIZE) < game->world.camera.bottom(0.f) - 2.f) continue;
-					if ((float)y + (float)(game->world.sections.at(i).y * SECT_SIZE) > game->world.camera.top(0.f) + 2.f) break;
-					Vec3 lightColor = game->world.sections.at(i).lightmap[x][y];
-					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, 0.f,  game->world.sections.at(i).tiles[x][y].type, lightColor.r, lightColor.g, lightColor.b, false);
-					addTile(game->world.sections.at(i).x * SECT_SIZE + x, game->world.sections.at(i).y * SECT_SIZE + y, -2.f, game->world.sections.at(i).bgTiles[x][y].type, lightColor.r, lightColor.g, lightColor.b, true);
-					if (game->world.sections.at(i).tiles[x][y].health < game->world.sections.at(i).tiles[x][y].maxHealth) {
-						addRect((float)(game->world.sections.at(i).x * SECT_SIZE + x), (float)(game->world.sections.at(i).y * SECT_SIZE + y), 0.001f, 1.f, 1.f, getMatID("tile_cracks"), floor((game->world.sections.at(i).tiles[x][y].maxHealth - game->world.sections.at(i).tiles[x][y].health) / game->world.sections.at(i).tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
+				//x frustum culling
+				if ((float)x + 1.f + (float)(section->x * SECT_SIZE) < game->world.camera.left(0.f) - 2.f) continue;
+				if ((float)x + (float)(section->x * SECT_SIZE) > game->world.camera.right(0.f) + 2.f) break;
+
+				for (int y = 0; y < SECT_SIZE; y += yStep) {
+					//y frustum culling
+					int type = section->tiles[x][y].type;
+					if (type == ttypes::air || y + 1 + (section->y * SECT_SIZE) < game->world.camera.bottom(0.f) - 2.f) {
+						yStep = 1;
+						continue;
+					}
+					if (y + (section->y * SECT_SIZE) > game->world.camera.top(0.f) + 2.f) break;
+
+					for (yStep = 1; yStep < SECT_SIZE - y; yStep++) {
+						if (section->tiles[x][y + yStep].type != type) break;
+					}
+
+					Vec3 lightColor{1.f, 1.f, 1.f};
+					addTile(section->x * SECT_SIZE + x, section->y * SECT_SIZE + y, 0.f, 1.f, (float)yStep, type, lightColor.r, lightColor.g, lightColor.b, false);
+					//addTile(section->x * SECT_SIZE + x, section->y * SECT_SIZE + y, -2.f, 1.f, (float)yStep, section->bgTiles[x][y].type, lightColor.r, lightColor.g, lightColor.b, true);
+					if (section->tiles[x][y].health < section->tiles[x][y].maxHealth) {
+						addRect((float)(section->x * SECT_SIZE + x), (float)(section->y * SECT_SIZE + y), 0.001f, 1.f, 1.f, getMatID("tile_cracks"), floor((section->tiles[x][y].maxHealth - section->tiles[x][y].health) / section->tiles[x][y].maxHealth * 8.f) / 8.f, 0.f, 1.f / 8.f, 1.f);
 					}
 				}
 			}
 			if (debug) addRect(game->world.sections.at(i).x * SECT_SIZE, game->world.sections.at(i).y * SECT_SIZE, 0.05f, SECT_SIZE, SECT_SIZE, getMatID("outline"));
 		}
-		addRect(floor(controls.worldMouse.x), floor(controls.worldMouse.y), 0.002f, 1.f, 1.f, getMatID("select"));
+
+		Entity* self = game->world.entities.at(game->world.self);
+		addRect(floor(self->pos.x + self->facingVector.x), floor(self->pos.y + self->facingVector.y), 0.002f, 1.f, 1.f, getMatID("select"));
+
 		for (int i = 0; i < (int)game->world.entities.size(); i++) {
 			Entity* e = game->world.entities.at(i);
 			if (e->type == etypes::item) {
 				float heightOffset = sin(game->world.time * 3.f) * 0.05f;
 				Item* item = e->items.at(e->itemNumber);
 				addRotatedRect(e->pos.x - item->size.x / 4.f, e->pos.y + heightOffset, 0.003f, item->size.x / 2.f, item->size.y / 2.f, getMatID(item->material), sin(game->world.time * 4.f) * 0.03f, e->pos.x, e->pos.y + item->size.y / 4.f + heightOffset);
-			} else if (e->type == etypes::player) {
-				int fvx = game->world.entities.at(i)->facingVector.x;
-				addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx == -1 ? 1.f : 0.f, 0.f, fvx == -1 ? -1.f : 1.f, 1.f);
-				float handX = (fvx == -1) ? (e->pos.x - e->size.x / 2.f - 0.1f) : (e->pos.x + e->size.x / 2.f + 0.1f);
+			} else {
+				float fvx = game->world.entities.at(i)->facingVector.x;
+				addRect(e->pos.x - e->size.x / 2.f, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material), fvx > 0.f ? 0.f : 1.f, 0.f, fvx > 0.f ? 1.f : -1.f, 1.f);
+				float handX = (fvx > 0.f) ? (e->pos.x + e->size.x / 2.f + 0.1f) : (e->pos.x - e->size.x / 2.f - 0.1f);
 
 				Item* item = e->items.at(e->itemNumber);
-				addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, item->size.x * (fvx == -1 ? -1.f : 1.f), item->size.y, getMatID(item->material), e->swingRotation * ((e->facingVector.x < 0) ? -1.f : 1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
-			} else {
-				addRect(e->pos.x, e->pos.y, 0.f, e->size.x, e->size.y, getMatID(e->material));
+				addRotatedRect(handX, e->pos.y + e->size.y / 2.f + 0.1f, 0.003f, item->size.x * (fvx > 0.f ? 1.f : -1.f), item->size.y, getMatID(item->material), e->swingRotation * ((fvx > 0.f) ? 1.f : -1.f), handX, e->pos.y + e->size.y / 2.f + 0.1f);
 			}
 		}
 		for (int i = 0; i < (int)game->world.particles.size(); i++) {
@@ -1937,7 +1849,7 @@ public:
 		mat4x4 m, p, mvp;
 		mat4x4_identity(m);
 		mat4x4_translate(m, -game->world.camera.pos.x, -game->world.camera.pos.y, -game->world.camera.zoom);
-		mat4x4_perspective(p, 1.57f, ratio, 0.01f, 100000.f);
+		mat4x4_perspective(p, 1.57f, ratio, 0.1f, 10000.f);
 		mat4x4_mul(mvp, p, m);
 
 		for (int i = 0; i < (int)materials.size(); i++) {
@@ -2000,10 +1912,10 @@ private:
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+h, z, u    , v    , 1.f, 1.f, 1.f, 1.f},
-			{x+w, y+h, z, u + s, v    , 1.f, 1.f, 1.f, 1.f},
-			{x  , y  , z, u    , v + t, 1.f, 1.f, 1.f, 1.f},
-			{x+w, y  , z, u + s, v + t, 1.f, 1.f, 1.f, 1.f}
+			{x  , y+h, z, u    , v + t, 1.f, 1.f, 1.f, 1.f},
+			{x+w, y+h, z, u + s, v + t, 1.f, 1.f, 1.f, 1.f},
+			{x  , y  , z, u    , v    , 1.f, 1.f, 1.f, 1.f},
+			{x+w, y  , z, u + s, v    , 1.f, 1.f, 1.f, 1.f}
 		});
 	}
 	void addScreenQuad(float x1, float y1, float x2, float y2, float x3, float y3, float x4, float y4, float z, int matId) {
@@ -2026,10 +1938,10 @@ private:
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+h, z, u    , v    , 1.f, 1.f, 1.f, 1.f},
-			{x+w, y+h, z, u + s, v    , 1.f, 1.f, 1.f, 1.f},
-			{x  , y  , z, u    , v + t, 1.f, 1.f, 1.f, 1.f},
-			{x+w, y  , z, u + s, v + t, 1.f, 1.f, 1.f, 1.f}
+			{x  , y+h, z, u    , v + t, 1.f, 1.f, 1.f, 1.f},
+			{x+w, y+h, z, u + s, v + t, 1.f, 1.f, 1.f, 1.f},
+			{x  , y  , z, u    , v    , 1.f, 1.f, 1.f, 1.f},
+			{x+w, y  , z, u + s, v    , 1.f, 1.f, 1.f, 1.f}
 		});
 	}
 	void addWorldRect(float x, float y, float z, float w, float h, int matId, float tileHealth, float lightR, float lightG, float lightB, float u=0.f, float v=0.f, float s=1.f, float t=1.f) {
@@ -2040,14 +1952,14 @@ private:
 			1U+end, 2U+end, 3U+end
 		});
 		vertices.insert(vertices.end(), {
-			{x  , y+h, z, u, v, tileHealth, lightR, lightG, lightB},
-			{x+w, y+h, z, u+s, v, tileHealth, lightR, lightG, lightB},
-			{x  , y  , z, u, v+t, tileHealth, lightR, lightG, lightB},
-			{x+w, y  , z, u+s, v+t, tileHealth, lightR, lightG, lightB}
+			{x  , y+h, z, u  , v+t, tileHealth, lightR, lightG, lightB},
+			{x+w, y+h, z, u+s, v+t, tileHealth, lightR, lightG, lightB},
+			{x  , y  , z, u  , v  , tileHealth, lightR, lightG, lightB},
+			{x+w, y  , z, u+s, v  , tileHealth, lightR, lightG, lightB}
 		});
 	}
-	void addTile(int x, int y, int z, int type, float lightR, float lightG, float lightB, bool isBackground) {
-		float uvSize;
+	void addTile(int x, int y, int z, int w, int h, int type, float lightR, float lightG, float lightB, bool isBackground) {
+		float uvSize = 1.f;
 		TileAddress addr;
 		switch (type) {
 		case ttypes::air:
@@ -2058,36 +1970,43 @@ private:
 			if (addr.i == -1) break;
 			if ((isBackground ? game->world.sections.at(addr.i).bgTiles[addr.x][addr.y] : game->world.sections.at(addr.i).tiles[addr.x][addr.y]).type == ttypes::air) {
 				uvSize = 10.f;
-				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("grass"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
+				addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("grass"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			} else {
 				uvSize = 5.f;
-				addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("dirt"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
+				addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("dirt"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			}
 			break;
 		case ttypes::snow:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("snow"), 1.f, lightR, lightG, lightB);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("snow"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		case ttypes::stone:
 			uvSize = 5.f;
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("stone"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, 1.f / uvSize, 1.f / uvSize);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("stone"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		case ttypes::wood:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("wood"), 1.f, lightR, lightG, lightB);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("wood"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		case ttypes::log:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("log"), 1.f, lightR, lightG, lightB);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("log"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		case ttypes::leaves:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("leaves"), 1.f, lightR, lightG, lightB);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("leaves"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		case ttypes::sentry_shack_bottom:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_bottom"), 1.f, lightR, lightG, lightB);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("sentry_shack_bottom"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		case ttypes::sentry_shack_middle:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_middle"), 1.f, lightR, lightG, lightB);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("sentry_shack_middle"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		case ttypes::sentry_shack_top:
-			addWorldRect((float)x, (float)y, (float)z, 1.f, 1.f, getMatID("sentry_shack_top"), 1.f, lightR, lightG, lightB);
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("sentry_shack_top"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
+			break;
+		case ttypes::lava:
+			uvSize = 5.f;
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("lava"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
+			break;
+		case ttypes::stone_wall:
+			addWorldRect((float)x, (float)y, (float)z, w, h, getMatID("stone_wall"), 1.f, lightR, lightG, lightB, (float)x / uvSize, (float)y / uvSize, w / uvSize, h / uvSize);
 			break;
 		}
 	}
@@ -2111,10 +2030,10 @@ private:
 			rectVerts[i].y += originY;
 		}
 		vertices.insert(vertices.end(), {
-			{rectVerts[0].x, rectVerts[0].y, z, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f},
-			{rectVerts[1].x, rectVerts[1].y, z, 1.f, 0.f, 1.f, 1.f, 1.f, 1.f},
-			{rectVerts[2].x, rectVerts[2].y, z, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f},
-			{rectVerts[3].x, rectVerts[3].y, z, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f}
+			{rectVerts[0].x, rectVerts[0].y, z, 0.f, 1.f, 1.f, 1.f, 1.f, 1.f},
+			{rectVerts[1].x, rectVerts[1].y, z, 1.f, 1.f, 1.f, 1.f, 1.f, 1.f},
+			{rectVerts[2].x, rectVerts[2].y, z, 0.f, 0.f, 1.f, 1.f, 1.f, 1.f},
+			{rectVerts[3].x, rectVerts[3].y, z, 1.f, 0.f, 1.f, 1.f, 1.f, 1.f}
 		});
 	};
 	Vec2 getCharacterCoords(char c) {
@@ -2276,10 +2195,13 @@ int main(void) {
 		return 1;
 	}
 
+
 	GLFWimage images[1]{};
 	images[0].pixels = stbi_load("icon.png", &images[0].width, &images[0].height, 0, 4); //rgba channels
 	glfwSetWindowIcon(window, 1, images);
 	stbi_image_free(images[0].pixels);
+
+	stbi_set_flip_vertically_on_load(true);
 
 	glfwSetKeyCallback(window, key_callback);
 	glfwSetMouseButtonCallback(window, mouse_button_callback);
@@ -2290,7 +2212,6 @@ int main(void) {
 	gladLoadGL();
 	glfwSwapInterval(0);
 
-	glfwWindowHint(GLFW_SAMPLES, 4);
 	glfwSetWindowSizeLimits(window, 160, 90, 160000, 90000);
 	glEnable(GL_DEPTH_TEST);
 	//glEnable(GL_CULL_FACE);
@@ -2298,6 +2219,7 @@ int main(void) {
 	//glCullFace(GL_FRONT);
 	glEnable(GL_BLEND);
 	glEnable(GL_MULTISAMPLE);
+	glfwWindowHint(GLFW_SAMPLES, 4);
 	glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
 	glClearColor(0.4f, 0.4f, 0.9f, 1.f);
 
